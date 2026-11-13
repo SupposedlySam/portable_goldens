@@ -1,0 +1,196 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:machine_goldens/machine_goldens.dart';
+
+import 'support/repo.dart';
+
+/// An 8x8 white png with a black pixel at ([x], 0): one [x] from another is
+/// a one-pixel change.
+Future<Uint8List> dot(int x) async {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder)
+    ..drawRect(const Rect.fromLTWH(0, 0, 8, 8), Paint()..color = Colors.white)
+    ..drawRect(Rect.fromLTWH(x.toDouble(), 0, 1, 1), Paint()..color = Colors.black);
+  final image = await recorder.endRecording().toImage(8, 8);
+  final png = await image.toByteData(format: ui.ImageByteFormat.png);
+  return png!.buffer.asUint8List();
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late TestRepo repo;
+  late Directory cache;
+  // The png the other machine committed, and what this machine renders from
+  // the same commit: a pixel apart, as on the two Macs.
+  late Uint8List committed;
+  late Uint8List renderedHere;
+  late Uint8List onePixelOff;
+  final golden = Uri.parse('goldens/a.png');
+
+  setUp(() async {
+    committed = await dot(0);
+    renderedHere = await dot(1);
+    onePixelOff = await dot(2);
+    repo = await TestRepo.create();
+    File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(committed);
+    await repo.commit('a is drawn');
+    cache = Directory.systemTemp.createTempSync('machine_goldens_cache');
+  });
+
+  tearDown(() {
+    repo.delete();
+    cache.deleteSync(recursive: true);
+  });
+
+  MachineGoldenComparator comparator({
+    FakeFlutter? flutter,
+    String? packageDir,
+  }) {
+    final dir = packageDir ?? repo.dir;
+    final fake = flutter ??
+        FakeFlutter(renders: ['test/goldens/a.png'], draw: (_) => renderedHere);
+    return MachineGoldenComparator(
+      Uri.file('$dir/test/a_test.dart'),
+      goldens: MachineGoldens(
+        packageDir: dir,
+        environment: const {'FLUTTER_ROOT': '/fake/flutter'},
+        key: fakeKey(),
+        cacheRoot: cache.path,
+        runProcess: fake.call,
+      ),
+      report: GoldenReport(dir),
+    );
+  }
+
+  test("this machine's render passes, where the committed image would fail",
+      () async {
+    final plain = LocalFileComparator(Uri.file('${repo.dir}/test/a_test.dart'));
+    await expectLater(plain.compare(renderedHere, golden), throwsFlutterError);
+
+    expect(await comparator().compare(renderedHere, golden), isTrue);
+  });
+
+  test('one pixel off fails, writes the diff images to failures/ and names '
+      'the baseline', () async {
+    final head = await repo.git(['rev-parse', 'HEAD']);
+    final machine = comparator();
+
+    await expectLater(
+      machine.compare(onePixelOff, golden),
+      throwsA(isA<FlutterError>().having(
+        (e) => e.message,
+        'message',
+        allOf(
+          contains('Pixel test failed'),
+          contains("this machine's baseline, rendered from commit "
+              '${head.substring(0, 10)}'),
+        ),
+      )),
+    );
+    final diff = File('${repo.dir}/test/failures/a_isolatedDiff.png');
+    expect(diff.existsSync(), isTrue);
+    final entry = machine.report.read().single;
+    expect(entry.golden, 'test/goldens/a.png');
+    expect(entry.outcome, GoldenOutcome.failed);
+    expect(entry.diffs, contains(diff.path));
+
+    // Fixed, the next pass clears it.
+    expect(await machine.compare(renderedHere, golden), isTrue);
+    expect(machine.report.read(), isEmpty);
+  });
+
+  group('a golden this branch changed', () {
+    setUp(() async {
+      await repo.git(['checkout', '--quiet', '-b', 'feature']);
+      File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(renderedHere);
+      await repo.commit('a moves');
+    });
+
+    test('passes against its own render, and is reported with its diff '
+        'against the committed image', () async {
+      final flutter = FakeFlutter();
+      final machine = comparator(flutter: flutter);
+
+      expect(await machine.compare(onePixelOff, golden), isTrue);
+
+      expect(flutter.testRuns, isEmpty);
+      final entry = machine.report.read().single;
+      expect(entry.outcome, GoldenOutcome.changed);
+      expect(
+        entry.diffs,
+        contains('${repo.dir}/test/failures/a_isolatedDiff_branch.png'),
+      );
+      expect(File(entry.diffs.first).existsSync(), isTrue);
+    });
+
+    test('that renders exactly as committed is reported with no diff',
+        () async {
+      final machine = comparator();
+
+      expect(await machine.compare(renderedHere, golden), isTrue);
+
+      final entry = machine.report.read().single;
+      expect(entry.outcome, GoldenOutcome.changed);
+      expect(entry.diffs, isEmpty);
+    });
+  });
+
+  test('a baseline build that fails fails the golden, naming the command',
+      () async {
+    final failing = FakeFlutter(
+      renders: ['test/goldens/a.png'],
+      draw: (_) => renderedHere,
+      testExitCode: 1,
+    );
+
+    await expectLater(
+      comparator(flutter: failing).compare(renderedHere, golden),
+      throwsA(isA<FlutterError>().having(
+        (e) => e.message,
+        'message',
+        allOf(
+          contains('could not build the baselines of commit'),
+          contains('test --update-goldens test/a_test.dart'),
+        ),
+      )),
+    );
+  });
+
+  test('--update-goldens writes the committed png and leaves the machine '
+      'baseline alone', () async {
+    final machine = comparator();
+    await machine.compare(renderedHere, golden);
+    final head = await repo.git(['rev-parse', 'HEAD']);
+    final baseline = File(
+      '${cache.path}/${fakeKey().id}/$head/root/test/goldens/a.png',
+    );
+
+    await machine.update(golden, onePixelOff);
+
+    expect(
+      File('${repo.dir}/test/goldens/a.png').readAsBytesSync(),
+      onePixelOff,
+    );
+    expect(baseline.readAsBytesSync(), renderedHere);
+    // Now uncommitted, the golden is the branch's: it passes as drawn.
+    expect(await comparator().compare(onePixelOff, golden), isTrue);
+  });
+
+  test('outside a git repository it is a plain comparator against the '
+      'committed image', () async {
+    final plain = Directory.systemTemp.createTempSync('machine_goldens_plain');
+    addTearDown(() => plain.deleteSync(recursive: true));
+    File('${plain.path}/test/goldens/a.png')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(committed);
+    final machine = comparator(packageDir: plain.path);
+
+    expect(await machine.compare(committed, golden), isTrue);
+    await expectLater(machine.compare(renderedHere, golden), throwsFlutterError);
+  });
+}

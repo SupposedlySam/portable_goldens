@@ -1,0 +1,25 @@
+name: machine_goldens
+description: "A golden file comparator that compares each golden exactly against a baseline this machine rendered, built from the commit that last changed it."
+version: 0.1.0
+repository: https://github.com/SupposedlySam/showrunner_code/tree/main/packages/machine_goldens
+topics:
+  - golden
+  - testing
+
+environment:
+  sdk: ^3.13.4
+  flutter: ">=3.47.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The comparator is a GoldenFileComparator, which flutter_test defines.
+  flutter_test:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+executables:
+  prepare:
+  report:
