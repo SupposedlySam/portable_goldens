@@ -7,7 +7,7 @@ export 'src/builder.dart'
     show BaselineBuilder, CheckoutUnavailable, ProcessRunner, childEnvironmentVariable;
 export 'src/git.dart' show GitRepo;
 export 'src/machine_key.dart' show MachineKey;
-export 'src/report.dart' show GoldenOutcome, GoldenReport, ReportEntry;
+export 'src/report.dart' show GoldenOutcome, GoldenReport, ReportEntry, currentRun;
 export 'src/session.dart'
     show
         BranchChange,

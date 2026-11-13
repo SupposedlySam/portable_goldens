@@ -241,5 +241,10 @@ void main() {
 
     expect(await machine.compare(committed, golden), isTrue);
     await expectLater(machine.compare(renderedHere, golden), throwsFlutterError);
+    // Recorded like any other failure, so `report` lists it.
+    final entry = machine.report.read().single;
+    expect(entry.outcome, GoldenOutcome.failed);
+    expect(entry.baseline, contains('the committed image'));
+    expect(entry.diffs, contains('${plain.path}/test/failures/a_isolatedDiff.png'));
   });
 }

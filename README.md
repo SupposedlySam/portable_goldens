@@ -49,10 +49,12 @@ dart run machine_goldens:report    # what failed, and what this branch changed
 - **`prepare`** builds the baselines that are missing, one commit at a time, and prints the
   machine key and where the baselines live. Running it first is optional, because a test builds
   what it needs. It does keep the build time out of the test run, and it shows a failed build on
-  its own rather than inside a test. It exits 1 if a build failed.
+  its own rather than inside a test. It exits 1 if a build failed, or if a build passed without
+  writing a golden it should have: it asks the store again before it says every baseline is in
+  place.
 - **`report`** lists two groups:
-  1. Each golden that **failed** against this machine's baseline, with the paths of its diff
-     images.
+  1. Each golden that **failed**, against this machine's baseline or against the committed
+     image or working-tree png it fell back to, with the paths of its diff images.
   2. Each golden **changed by this branch**, with its diff against what it was before the
      branch, or "no diff".
 
@@ -226,7 +228,10 @@ Once the png is committed, its new commit gets a baseline of its own the next ti
 | `MACHINE_GOLDENS_CHILD` | Set to `1` inside a baseline build. Set by the package, not by you. |
 
 Each test run records its outcomes under `.dart_tool/machine_goldens/report/` in the package,
-which is where `report` reads them.
+which is where `report` reads them. The first write of a test process deletes the entries an
+earlier run left, so a golden fixed or deleted since is not listed. A run is told apart by the
+`flutter test` process all its test files share, its pid and start time, asked of `ps`. On
+Windows there is no `ps`, so entries are only ever replaced there, not swept.
 
 ## Limits
 
