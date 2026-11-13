@@ -6,7 +6,8 @@ import 'package:machine_goldens/baselines.dart';
 import 'support/repo.dart';
 
 void main() {
-  test("this machine's key holds its OS version, arch, engine and Dart", () {
+  test("this machine's key holds its OS version, arch, engine, framework "
+      'and Dart', () {
     final key = MachineKey.current();
 
     expect(key.os, Platform.operatingSystem);
@@ -14,6 +15,7 @@ void main() {
     if (Platform.isMacOS) expect(key.osVersion, contains('(Build '));
     expect(key.arch, isNotEmpty);
     expect(key.engineRevision, matches(RegExp(r'^[0-9a-f]{40}$')));
+    expect(key.frameworkRevision, matches(RegExp(r'^[0-9a-f]{40}$')));
     expect(Platform.version, startsWith(key.dartVersion));
   });
 
@@ -25,6 +27,7 @@ void main() {
         {...key.toJson(), 'os': 'linux'},
         {...key.toJson(), 'arch': 'macos_x64'},
         {...key.toJson(), 'engineRevision': '0' * 40},
+        {...key.toJson(), 'frameworkRevision': '0' * 40},
         {...key.toJson(), 'dartVersion': '3.14.0'},
       ])
         MachineKey.fromJson(json),
@@ -67,6 +70,50 @@ void main() {
         isNull,
       );
     });
+  });
+
+  group('the framework revision', () {
+    late Directory root;
+    const sha = '6a19cca56475dbfba1478ee68d7bd0c2ef891da1';
+
+    setUp(() => root = Directory.systemTemp.createTempSync('machine_goldens_sdk'));
+    tearDown(() => root.deleteSync(recursive: true));
+
+    void write(String path, String content) => File('${root.path}/$path')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(content);
+
+    test("is the commit the checkout's branch names, loose or packed", () {
+      write('.git/HEAD', 'ref: refs/heads/stable\n');
+      write('.git/packed-refs', '# pack-refs\n$sha refs/heads/stable\n');
+      expect(MachineKey.frameworkRevisionOf(root.path), sha);
+
+      write('.git/refs/heads/stable', '${'1' * 40}\n');
+      expect(MachineKey.frameworkRevisionOf(root.path), '1' * 40);
+    });
+
+    test('is a detached HEAD itself', () {
+      write('.git/HEAD', '$sha\n');
+
+      expect(MachineKey.frameworkRevisionOf(root.path), sha);
+    });
+
+    test("is the tool's version file without a checkout, else unknown", () {
+      expect(MachineKey.frameworkRevisionOf(root.path), isNull);
+
+      write('bin/cache/flutter.version.json', '{"frameworkRevision": "$sha"}');
+      expect(MachineKey.frameworkRevisionOf(root.path), sha);
+    });
+
+    test("matches git's own answer for this SDK", () async {
+      final sdk = MachineKey.flutterRoot()!;
+      final git = await Process.run('git', ['rev-parse', 'HEAD'],
+          workingDirectory: sdk);
+
+      expect(MachineKey.frameworkRevisionOf(sdk), (git.stdout as String).trim());
+    }, skip: Directory('${MachineKey.flutterRoot()}/.git').existsSync()
+        ? false
+        : 'the SDK is not a git checkout');
   });
 
   test('the SDK is FLUTTER_ROOT, or the folder above the executable\'s '

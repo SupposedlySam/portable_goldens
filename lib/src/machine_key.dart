@@ -8,7 +8,10 @@ import 'dart:io';
 /// rendered the same widgets 1 to 20 pixels apart at the edges of anti-aliased
 /// circles, and the only difference between them was the OS: macOS 26.6.2
 /// (25G83) and 27.2.1 (26B131). So the OS's version and build are in the key,
-/// next to what the Flutter side contributes: the engine and Dart.
+/// next to what the Flutter side contributes: the engine, the framework and
+/// Dart. The framework is there because text layout, painting and every
+/// widget are framework code: a framework commit on the same engine, as on
+/// Flutter's main channel, can move pixels.
 ///
 /// The CPU model is not in it. The two Macs were an M4 Pro and an M4 Max, and
 /// the OS version alone separated them; add a field here if two machines with
@@ -20,6 +23,7 @@ class MachineKey {
     required this.osVersion,
     required this.arch,
     required this.engineRevision,
+    required this.frameworkRevision,
     required this.dartVersion,
   });
 
@@ -30,9 +34,9 @@ class MachineKey {
   /// macOS: `Abi` is `macos_arm64` in both, since `flutter_tester` is an arm64
   /// binary despite its `darwin-x64` folder).
   ///
-  /// [engineRevision] is null when the Flutter SDK cannot be found, and a
-  /// caller must then not trust any baseline, since an engine update would go
-  /// unnoticed.
+  /// [engineRevision] and [frameworkRevision] are null when they cannot be
+  /// found, and a caller must then not trust any baseline, since an update
+  /// would go unnoticed.
   factory MachineKey.current({Map<String, String>? environment}) {
     final root = flutterRoot(environment: environment);
     return MachineKey(
@@ -41,6 +45,7 @@ class MachineKey {
       osVersion: Platform.operatingSystemVersion,
       arch: Abi.current().toString(),
       engineRevision: root == null ? null : engineRevisionOf(root),
+      frameworkRevision: root == null ? null : frameworkRevisionOf(root),
       dartVersion: Platform.version.split(' ').first,
     );
   }
@@ -51,6 +56,9 @@ class MachineKey {
     osVersion: json['osVersion'] as String,
     arch: json['arch'] as String,
     engineRevision: json['engineRevision'] as String?,
+    // A manifest written before the field existed: a key that differs, so
+    // its folder is never this key's.
+    frameworkRevision: json['frameworkRevision'] as String?,
     dartVersion: json['dartVersion'] as String,
   );
 
@@ -66,6 +74,9 @@ class MachineKey {
   /// The Flutter engine commit whose artifacts the SDK runs tests with.
   final String? engineRevision;
 
+  /// The Flutter framework commit the SDK is checked out at.
+  final String? frameworkRevision;
+
   /// The Dart SDK version, e.g. `3.13.4`.
   final String dartVersion;
 
@@ -75,6 +86,7 @@ class MachineKey {
     'osVersion': osVersion,
     'arch': arch,
     'engineRevision': engineRevision,
+    'frameworkRevision': frameworkRevision,
     'dartVersion': dartVersion,
   };
 
@@ -139,6 +151,47 @@ class MachineKey {
       if (!file.existsSync()) continue;
       final value = file.readAsStringSync().trim();
       if (value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  /// The framework revision of the SDK at [root].
+  ///
+  /// The commit its git checkout is at, read from `.git` without launching
+  /// git, since this runs in every test process: `HEAD`, then the loose or
+  /// packed ref it names. The fallback is `frameworkRevision` in
+  /// `bin/cache/flutter.version.json`, which the tool writes. On Flutter
+  /// 3.47.5 both held `6a19cca56475dbfba1478ee68d7bd0c2ef891da1`, as did
+  /// `git rev-parse HEAD`. Uncommitted edits to the framework are not seen.
+  static String? frameworkRevisionOf(String root) {
+    final sep = Platform.pathSeparator;
+    String? read(String path) {
+      final file = File(path);
+      if (!file.existsSync()) return null;
+      final value = file.readAsStringSync().trim();
+      return value.isEmpty ? null : value;
+    }
+
+    final git = '$root$sep.git';
+    if (read('$git${sep}HEAD') case final head?) {
+      if (!head.startsWith('ref: ')) return head;
+      final ref = head.substring('ref: '.length);
+      if (read('$git$sep${ref.replaceAll('/', sep)}') case final loose?) {
+        return loose;
+      }
+      for (final line in (read('$git${sep}packed-refs') ?? '').split('\n')) {
+        if (line.endsWith(' $ref')) return line.split(' ').first;
+      }
+    }
+    final version = read('$root${sep}bin${sep}cache${sep}flutter.version.json');
+    if (version == null) return null;
+    try {
+      final json = jsonDecode(version);
+      if (json is Map && json['frameworkRevision'] is String) {
+        return json['frameworkRevision'] as String;
+      }
+    } on FormatException {
+      // Half written: unknown.
     }
     return null;
   }

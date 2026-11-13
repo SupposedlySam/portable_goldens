@@ -100,7 +100,8 @@ class MachineGoldens {
   final _fills = <String, Future<void>>{};
 
   /// The key this machine's baselines are filed under.
-  MachineKey get key => _key ?? MachineKey.current(environment: environment);
+  late final MachineKey key =
+      _key ?? MachineKey.current(environment: environment);
 
   /// The baseline of the golden at [path] (absolute, or relative to the
   /// package).
@@ -261,11 +262,11 @@ class MachineGoldens {
       return const _Context.fallback('this run is itself building baselines');
     }
     final key = this.key;
-    if (key.engineRevision == null) {
-      // Without the engine in the key, an engine update would reuse
+    if (key.engineRevision == null || key.frameworkRevision == null) {
+      // Without the engine and framework in the key, an update would reuse
       // baselines it did not render.
       return const _Context.fallback(
-        'the Flutter SDK, and so the engine revision, could not be found',
+        "the Flutter SDK's engine or framework revision could not be found",
       );
     }
     final repo = await GitRepo.open(packageDir);

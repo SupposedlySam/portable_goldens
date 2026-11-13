@@ -73,6 +73,7 @@ The key holds everything that changes how this machine renders a golden:
 | OS version and build | `Platform.operatingSystemVersion`, e.g. `Version 27.2.1 (Build 26B131)` |
 | Architecture | `Abi.current()`, e.g. `macos_arm64` |
 | Engine revision | see below |
+| Framework revision | see below |
 | Dart version | `Platform.version` |
 
 A 16-hex-digit hash of those values (FNV-1a, 64-bit) names this machine's folder, and
@@ -89,8 +90,15 @@ when it downloads the engine artifacts. That file names the engine `flutter_test
 from. The fallback is `bin/internal/engine.version`, which is the engine the framework checkout
 asks for; a checkout can change it before the cache catches up. `flutter --version --machine`
 reports the same value, but it costs a process launch in every test file. The SDK is found from
-`FLUTTER_ROOT`, which `flutter test` sets, or else from the running executable's path. When no
-engine revision can be found, every golden compares with the committed image, because an engine
+`FLUTTER_ROOT`, which `flutter test` sets, or else from the running executable's path.
+
+**Framework revision.** Text layout, painting and every widget are framework code, so a framework
+commit on an unchanged engine, as on Flutter's main channel, can move pixels too. It is the commit
+the SDK's git checkout is at, read from `.git/HEAD` and the ref it names, without launching git.
+The fallback is `frameworkRevision` in `bin/cache/flutter.version.json`, which the tool writes.
+Uncommitted edits to the framework are not seen.
+
+When either revision cannot be found, every golden compares with the committed image, because an
 update would otherwise go unnoticed.
 
 ### Where baselines live
@@ -134,8 +142,8 @@ For each golden, the comparator decides in this order:
    and the baseline's path.
 3. **The committed image**, as a plain `LocalFileComparator` would compare. This is the fallback
    when there is no git, the package is outside a repository, the clone is shallow, no commit
-   has the png, the commit cannot be checked out, no engine revision is found, or the test runs
-   inside a baseline build. The reason is printed once per test process. A shallow clone, as CI
+   has the png, the commit cannot be checked out, no engine or framework revision is found, or
+   the test runs inside a baseline build. The reason is printed once per test process. A shallow clone, as CI
    often makes, counts because its history stops at a boundary commit: `git log -1` names that
    commit for every png older than it, and its render is not what the png showed.
 

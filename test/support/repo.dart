@@ -9,6 +9,7 @@ MachineKey fakeKey({String osVersion = 'Version 27.2.1 (Build 26B131)'}) =>
       osVersion: osVersion,
       arch: 'macos_arm64',
       engineRevision: 'af7e796e161ae0bb1ff0758c71a7105418bd9ded',
+      frameworkRevision: '6a19cca56475dbfba1478ee68d7bd0c2ef891da1',
       dartVersion: '3.13.4',
     );
 
