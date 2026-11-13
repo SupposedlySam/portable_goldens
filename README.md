@@ -237,13 +237,19 @@ Windows there is no `ps`, so entries are only ever replaced there, not swept.
 
 - **A baseline build costs a test run.** It runs that commit's golden tests: about 18 seconds
   for 12 goldens in one measured repository. That cost is paid once per commit per machine
-  key, and again after every OS, engine or Dart update.
+  key, and again after every OS, engine, framework or Dart update.
 - **A commit that no longer builds or passes** with today's SDK cannot produce a baseline, and
   its goldens fail with the command that failed. Re-render the png on the branch and commit it
   to move it to a commit that builds.
 - **The key is measured, not proven.** The CPU model is left out because the OS version alone
   separated the two machines that prompted this package. If two machines with the same key ever
   render differently, the key needs another field.
+- **Nothing checks a committed png against its own commit's code.** The baseline is what the
+  commit renders here, never the png it committed, so a png committed stale (re-rendered before
+  a last code change, say) passes on every machine, and only a reviewer looking at it can tell.
+  `report` does not flag a render that differs from the committed png either: on any machine
+  but the one that rendered it, every golden differs from it, which is why this package exists,
+  so the flag would be noise that cannot tell a stale png from another machine's pixels.
 - **The cache grows.** Nothing prunes old key folders or commits yet.
 
 ## Credit
