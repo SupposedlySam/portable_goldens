@@ -272,6 +272,14 @@ class MachineGoldens {
     if (repo == null) {
       return const _Context.fallback('the package is not in a git repository');
     }
+    if (await repo.isShallow()) {
+      // The boundary commit would pass for the commit that last changed
+      // every older golden, and its render is not what any of them showed.
+      return const _Context.fallback(
+        'the clone is shallow, so the commit that last changed a golden '
+        'cannot be found',
+      );
+    }
     final base = await repo.branchBase(
       baseRef: environment[baseEnvironmentVariable],
     );

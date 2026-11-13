@@ -26,6 +26,11 @@ class GitRepo {
   /// Runs git in [topLevel]; null when git fails or is missing.
   Future<String?> run(List<String> args) => _git(topLevel, args);
 
+  /// Whether the clone is shallow: its history stops at a boundary commit,
+  /// which `git log -1 -- <path>` then names for every path older than it.
+  Future<bool> isShallow() async =>
+      await run(['rev-parse', '--is-shallow-repository']) == 'true';
+
   /// The commit that last changed [path], or null when no commit has it.
   ///
   /// `git log -1 -- <path>`, from HEAD or from [at], with git's default

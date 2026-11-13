@@ -247,6 +247,39 @@ void main() {
     ));
   });
 
+  test('a shallow clone compares with the committed image, since its '
+      'boundary commit would pass for the one that last changed a golden',
+      () async {
+    repo.write('test/goldens/b.png', 'committed b, again');
+    final head = await repo.commit('b moves');
+    final shallow =
+        Directory.systemTemp.createTempSync('machine_goldens_shallow');
+    addTearDown(() => shallow.deleteSync(recursive: true));
+    await Process.run('git', [
+      'clone', '--quiet', '--depth', '1', 'file://${repo.dir}', shallow.path,
+    ]);
+    // a.png's commit is not in the clone: log names the boundary instead.
+    final log = await Process.run(
+      'git', ['log', '-1', '--format=%H', '--', 'test/goldens/a.png'],
+      workingDirectory: shallow.path,
+    );
+    expect((log.stdout as String).trim(), head);
+    final flutter = FakeFlutter();
+
+    final baseline = await MachineGoldens(
+      packageDir: shallow.resolveSymbolicLinksSync(),
+      environment: const {'FLUTTER_ROOT': '/fake/flutter'},
+      key: fakeKey(),
+      cacheRoot: cache.path,
+      runProcess: flutter.call,
+    ).baselineFor('test/goldens/a.png');
+
+    expect(baseline, isA<CommittedBaseline>().having(
+      (c) => c.reason, 'reason', contains('the clone is shallow'),
+    ));
+    expect(flutter.testRuns, isEmpty);
+  });
+
   test('outside a git repository it compares with the committed image',
       () async {
     final plain = Directory.systemTemp.createTempSync('machine_goldens_plain');

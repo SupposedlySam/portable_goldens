@@ -133,9 +133,11 @@ For each golden, the comparator decides in this order:
    `failures/` beside the test, as with `LocalFileComparator`, and the message names the commit
    and the baseline's path.
 3. **The committed image**, as a plain `LocalFileComparator` would compare. This is the fallback
-   when there is no git, the package is outside a repository, no commit has the png, the commit
-   cannot be checked out, no engine revision is found, or the test runs inside a baseline build.
-   The reason is printed once per test process.
+   when there is no git, the package is outside a repository, the clone is shallow, no commit
+   has the png, the commit cannot be checked out, no engine revision is found, or the test runs
+   inside a baseline build. The reason is printed once per test process. A shallow clone, as CI
+   often makes, counts because its history stops at a boundary commit: `git log -1` names that
+   commit for every png older than it, and its render is not what the png showed.
 
 Whatever decided the test, a golden that passed and that this branch changed is recorded as
 **changed by this branch**, with its diff against what it was before the branch, so a PR says
