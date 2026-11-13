@@ -93,8 +93,12 @@ class BaselineBuilder {
             '($childEnvironmentVariable=1)',
       );
     }
-    final temp = Directory.systemTemp.createTempSync('machine_goldens_');
-    final checkout = '${temp.path}/checkout';
+    // Beside [into], so a build killed before its cleanup leaves the
+    // checkout where the next build's sweep finds it, and not in the system
+    // temp folder until a reboot. Its registration in the repository is what
+    // the prune before `add` drops.
+    final checkout = '${into.path}-checkout';
+    await _run('git', ['worktree', 'prune'], workingDirectory: repo.topLevel);
     try {
       final added = await _run('git', [
         // A checkout for rendering must not run the repo's hooks.
@@ -150,7 +154,8 @@ class BaselineBuilder {
     } finally {
       await _run('git', ['worktree', 'remove', '--force', checkout],
           workingDirectory: repo.topLevel);
-      if (temp.existsSync()) temp.deleteSync(recursive: true);
+      final left = Directory(checkout);
+      if (left.existsSync()) left.deleteSync(recursive: true);
       await _run('git', ['worktree', 'prune'], workingDirectory: repo.topLevel);
     }
   }

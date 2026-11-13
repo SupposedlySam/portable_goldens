@@ -92,6 +92,58 @@ void main() {
         contains('26B131'));
   });
 
+  test('an unreadable manifest is rewritten, and the baselines beside it are '
+      'kept', () async {
+    final key = fakeKey();
+    await BaselineStore.open(cache.path, key).fill('c0ffee', 'root', render);
+    // Half of one, as a reader saw it mid-write before writes were atomic.
+    File('${cache.path}/${key.id}/manifest.json').writeAsStringSync('{"os":');
+
+    final store = BaselineStore.open(cache.path, key);
+
+    expect(store.baseline('c0ffee', 'root', 'test/goldens/a.png'), isNotNull);
+    expect(
+      File('${cache.path}/${key.id}/manifest.json').readAsStringSync(),
+      contains('26B131'),
+    );
+  });
+
+  test('an image the marker does not list is not a baseline, nor is any '
+      'image under a marker that does not parse', () async {
+    final store = BaselineStore.open(cache.path, fakeKey());
+    await store.fill('c0ffee', 'root', render);
+    final dir = store.unitDir('c0ffee', 'root').path;
+    File('$dir/test/goldens/b.png').writeAsStringSync('copied in by hand');
+
+    expect(store.baseline('c0ffee', 'root', 'test/goldens/b.png'), isNull);
+
+    File('$dir/.complete').writeAsStringSync('{"files": [');
+    expect(store.isComplete('c0ffee', 'root'), isFalse);
+    expect(store.baseline('c0ffee', 'root', 'test/goldens/a.png'), isNull);
+  });
+
+  test('what a killed build left behind is swept by the next build', () async {
+    final store = BaselineStore.open(cache.path, fakeKey());
+    final commitDir = '${store.machineDir.path}/c0ffee';
+    final left = [
+      Directory('$commitDir/.root.tmp-1-1'),
+      Directory('$commitDir/.root.tmp-1-1-checkout'),
+    ];
+    for (final dir in left) {
+      File('${dir.path}/test/goldens/a.png')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('half written');
+    }
+    final otherUnit = Directory('$commitDir/.app.tmp-1-1')..createSync();
+
+    await store.fill('c0ffee', 'root', render);
+
+    for (final dir in left) {
+      expect(dir.existsSync(), isFalse, reason: dir.path);
+    }
+    expect(otherUnit.existsSync(), isTrue);
+  });
+
   test('a build that failed while another waited is not run again: the '
       'waiter gets the same failure', () async {
     final store = BaselineStore.open(cache.path, fakeKey());

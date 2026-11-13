@@ -44,30 +44,41 @@ class BaselineStore {
 
   /// Opens this machine's folder under [root], creating it.
   ///
-  /// A folder whose manifest disagrees with [key] is emptied first: its name
+  /// A folder whose manifest names another key is emptied first: its name
   /// is a hash of the key, so that is a hash collision or a hand edit, and in
   /// neither case were its images rendered by this machine.
+  ///
+  /// A manifest that cannot be read is only rewritten. It says nothing about
+  /// the images, which the folder's name already ties to this key, and every
+  /// test process opens the store at once: emptying the folder then would
+  /// delete what the others are reading and building. The manifest is
+  /// written to a temporary file and renamed into place, so no reader sees
+  /// half of one.
   static BaselineStore open(String root, MachineKey key) {
     final dir = Directory('$root/${key.id}');
     final manifest = File('${dir.path}/manifest.json');
-    if (manifest.existsSync()) {
-      MachineKey? recorded;
-      try {
-        recorded = MachineKey.fromJson(
-          jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>,
-        );
-      } on Object {
-        recorded = null;
-      }
-      if (recorded != key) dir.deleteSync(recursive: true);
-    }
-    if (!manifest.existsSync()) {
-      dir.createSync(recursive: true);
-      manifest.writeAsStringSync(
-        const JsonEncoder.withIndent('  ').convert(key.toJson()),
-      );
-    }
+    final recorded = _recordedKey(manifest);
+    if (recorded == key) return BaselineStore._(dir, key);
+    if (recorded != null) dir.deleteSync(recursive: true);
+    dir.createSync(recursive: true);
+    final temp = File(
+      '${manifest.path}.$pid-${DateTime.now().microsecondsSinceEpoch}.tmp',
+    );
+    temp.writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert(key.toJson()),
+    );
+    temp.renameSync(manifest.path);
     return BaselineStore._(dir, key);
+  }
+
+  static MachineKey? _recordedKey(File manifest) {
+    try {
+      return MachineKey.fromJson(
+        jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>,
+      );
+    } on Object {
+      return null;
+    }
   }
 
   /// `<root>/<key id>`.
@@ -84,15 +95,29 @@ class BaselineStore {
   ///
   /// The marker is written last, inside the temporary folder, before the
   /// folder is renamed into place; a folder without it is a build that never
-  /// finished, from an older version or a hand copy, and is not read.
+  /// finished, from an older version or a hand copy, and is not read. Nor is
+  /// one whose marker does not parse.
   bool isComplete(String commit, String unit) =>
-      File('${unitDir(commit, unit).path}/.complete').existsSync();
+      _builtFiles(commit, unit) != null;
 
   /// The baseline of the package-relative [path], or null when there is none.
+  ///
+  /// Only an image the marker lists: anything else in the folder was not
+  /// written by the build the marker records.
   File? baseline(String commit, String unit, String path) {
-    if (!isComplete(commit, unit)) return null;
+    if (!(_builtFiles(commit, unit)?.contains(path) ?? false)) return null;
     final file = File('${unitDir(commit, unit).path}/$path');
     return file.existsSync() ? file : null;
+  }
+
+  Set<String>? _builtFiles(String commit, String unit) {
+    try {
+      final marker = File('${unitDir(commit, unit).path}/.complete');
+      final json = jsonDecode(marker.readAsStringSync()) as Map<String, Object?>;
+      return {for (final path in json['files'] as List<Object?>) path as String};
+    } on Object {
+      return null;
+    }
   }
 
   /// The record of the last failed build of [commit] for [unit].
@@ -135,6 +160,7 @@ class BaselineStore {
           jsonDecode(record.readAsStringSync()) as Map<String, Object?>,
         );
       }
+      _sweep(commitDir, unit);
       final temp = Directory(
         '${commitDir.path}/.$unit.tmp-$pid-${DateTime.now().microsecondsSinceEpoch}',
       );
@@ -173,6 +199,24 @@ class BaselineStore {
         if (temp.existsSync()) temp.deleteSync(recursive: true);
       }
     });
+  }
+}
+
+/// Deletes what builds of [unit] left in [commitDir] when they were killed
+/// before their own cleanup: `.<unit>.tmp-*`, the temporary folder and the
+/// checkout beside it. Called under the lock, so none of them is a build
+/// still running here; a build orphaned by a killed test process may still
+/// be running in one, and fails, which nothing is waiting for.
+void _sweep(Directory commitDir, String unit) {
+  for (final entity in commitDir.listSync(followLinks: false)) {
+    final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+    if (entity is Directory && name.startsWith('.$unit.tmp-')) {
+      try {
+        entity.deleteSync(recursive: true);
+      } on FileSystemException {
+        // Another sweep got there first.
+      }
+    }
   }
 }
 

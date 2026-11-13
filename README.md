@@ -79,8 +79,8 @@ The key holds everything that changes how this machine renders a golden:
 A 16-hex-digit hash of those values (FNV-1a, 64-bit) names this machine's folder, and
 `manifest.json` beside it records the readable values. When any value changes, after an OS
 update say, the hash names a new folder. The baselines rendered before the change are never
-found, so they are rebuilt rather than reused silently. A folder whose manifest disagrees with
-its key (a collision, or a hand edit) is emptied.
+found, so they are rebuilt rather than reused silently. A folder whose manifest names another
+key (a collision, or a hand edit) is emptied.
 
 On the two Macs above, the keys differ in the OS version and build alone. The M4 Pro and M4 Max
 CPU models are not in the key: the OS already separated them.
@@ -120,6 +120,7 @@ Set `MACHINE_GOLDENS_CACHE` to put it somewhere else. The layout:
 <cache>/<key id>/<commit>/<unit>/.complete
 <cache>/<key id>/<commit>/<unit>.lock     held while it is built
 <cache>/<key id>/<commit>/<unit>.failed   the last build that failed
+<cache>/<key id>/<commit>/.<unit>.tmp-*   a build in progress, and its checkout
 ```
 
 The unit is the package's folder in its repository (`root` at the top), so two packages of one
@@ -165,7 +166,9 @@ With none of them, only uncommitted changes count.
 
 The first golden that needs a commit's baselines builds all of them at once:
 
-1. Run `git worktree add --detach <temp> <commit>`, with the repository's hooks off.
+1. Run `git worktree prune`, then `git worktree add --detach <checkout> <commit>`, with the
+   repository's hooks off. The checkout is `.<unit>.tmp-<pid>-<time>-checkout`, beside the
+   build's temporary folder in the cache.
 2. Run `flutter pub get`, then `flutter test --update-goldens <files>` in the package. The files
    are the test files whose source contains `matchesGoldenFile`, or all of `test/` when none
    does.
@@ -186,7 +189,17 @@ commit, so the build is safe to race:
 - **Build, mark, rename.** The images and the `.complete` marker are written to a temporary
   folder, which is renamed into place in one atomic step. A folder without the marker is
   treated as missing and rebuilt, so a half-written baseline is never read as a good one, even
-  where the lock does not hold.
+  where the lock does not hold. So is a folder whose marker does not parse, and an image the
+  marker does not list.
+- **A sweep.** A build killed before its own cleanup (by SIGKILL, say) leaves its temporary
+  folder and checkout behind. The next build of that unit deletes every `.<unit>.tmp-*` under
+  the lock, and its `git worktree prune` drops the dead checkout's registration. Killing a test
+  process does not kill a `flutter test` it started: that orphan runs on in its checkout until
+  the sweep deletes it or it finishes, and nothing reads what it wrote.
+- **An atomic manifest.** Every test process opens the store at once, so `manifest.json` is
+  written to a temporary file and renamed into place. A manifest that cannot be read is
+  rewritten, and the baselines beside it are kept: only a readable manifest of another key
+  empties the folder.
 
 **A failed build fails the golden loudly.** The message names the commit, the command (in a form
 that can be pasted into a shell) and the end of its output.

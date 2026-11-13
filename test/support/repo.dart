@@ -89,8 +89,9 @@ class FakeFlutter {
   /// Whether `git worktree add` fails, as on a shallow clone.
   final bool checkoutFails;
 
-  /// Every `flutter test` run: its arguments and environment.
-  final testRuns = <({List<String> args, Map<String, String> env})>[];
+  /// Every `flutter test` run: its arguments, environment and folder.
+  final testRuns =
+      <({List<String> args, Map<String, String> env, String? dir})>[];
 
   /// The [ProcessRunner] to hand to the code under test.
   Future<ProcessResult> call(
@@ -108,7 +109,11 @@ class FakeFlutter {
           workingDirectory: workingDirectory);
     }
     if (arguments.first == 'pub') return ProcessResult(0, 0, '', '');
-    testRuns.add((args: arguments, env: environment ?? const {}));
+    testRuns.add((
+      args: arguments,
+      env: environment ?? const {},
+      dir: workingDirectory,
+    ));
     final head = await Process.run('git', ['rev-parse', 'HEAD'],
         workingDirectory: workingDirectory);
     final commit = (head.stdout as String).trim();

@@ -209,6 +209,19 @@ void main() {
     });
   });
 
+  test("the build's checkout is beside its temporary folder in the cache, "
+      'where a sweep finds it, and is gone afterwards', () async {
+    final flutter = FakeFlutter();
+
+    await session(flutter).baselineFor('test/goldens/a.png');
+
+    final dir = flutter.testRuns.single.dir!;
+    expect(dir, startsWith(cache.path));
+    expect(dir, matches(RegExp(r'/\.root\.tmp-[0-9-]+-checkout/$')));
+    expect(Directory(dir).existsSync(), isFalse);
+    expect(await repo.git(['worktree', 'list']), isNot(contains('checkout')));
+  });
+
   test('a build that fails is a loud failure naming the commit and the '
       'command', () async {
     final head = await repo.git(['rev-parse', 'HEAD']);
