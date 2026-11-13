@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -172,27 +173,85 @@ void main() {
     expect(builds, 1);
   });
 
-  test('two processes filling the same baseline at once build it once',
-      () async {
-    final dart = '${MachineKey.flutterRoot()}/bin/cache/dart-sdk/bin/dart';
+  final dart = '${MachineKey.flutterRoot()}/bin/cache/dart-sdk/bin/dart';
+
+  test('two processes filling the same baseline at once build it once: the '
+      'second waits on the lock', () async {
     final log = File('${cache.path}/builds.log');
-    Future<ProcessResult> one() => Process.run(dart, [
-      '--packages=.dart_tool/package_config.json',
-      'test/support/fill_main.dart',
-      cache.path,
-      log.path,
-    ]);
+    final release = File('${cache.path}/release');
+    final waiting = Completer<void>();
+    Future<(int, String)> one() async {
+      final process = await Process.start(dart, [
+        '--packages=.dart_tool/package_config.json',
+        'test/support/fill_main.dart',
+        cache.path,
+        log.path,
+        release.path,
+      ]);
+      final out = process.stdout.transform(utf8.decoder).join();
+      process.stderr.transform(utf8.decoder).listen((text) {
+        if (text.contains('waiting for another build') &&
+            !waiting.isCompleted) {
+          waiting.complete();
+        }
+      });
+      return (await process.exitCode, (await out).trim());
+    }
 
-    final results = await Future.wait([one(), one()]);
+    final runs = Future.wait([one(), one()]);
+    // Held until the second has tried the lock and said so; a bound, so a
+    // broken lock fails below rather than hanging.
+    var contended = true;
+    await waiting.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => contended = false,
+    );
+    release.createSync();
+    final results = await runs;
 
-    for (final result in results) {
-      expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(contended, isTrue, reason: 'the second process never waited');
+    for (final (code, _) in results) {
+      expect(code, 0);
     }
     final builders = log.readAsLinesSync();
     expect(builders, hasLength(1));
     expect(
-      [for (final r in results) (r.stdout as String).trim()],
+      [for (final (_, out) in results) out],
       everyElement('rendered by ${builders.single}'),
+    );
+  });
+
+  test('processes opening a store with no manifest yet, all at once, keep '
+      "each other's baselines", () async {
+    final start = DateTime.now().add(const Duration(seconds: 2));
+    final commits = [for (var i = 0; i < 6; i++) 'c0ffee$i'];
+
+    final results = await Future.wait([
+      for (final commit in commits)
+        Process.run(dart, [
+          '--packages=.dart_tool/package_config.json',
+          'test/support/open_main.dart',
+          cache.path,
+          commit,
+          '${start.millisecondsSinceEpoch}',
+        ]),
+    ]);
+
+    for (final result in results) {
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+    }
+    final store = BaselineStore.open(cache.path, fakeKey());
+    for (final commit in commits) {
+      expect(
+        store.baseline(commit, 'root', 'test/goldens/a.png')?.readAsStringSync(),
+        'rendered at $commit',
+      );
+    }
+    expect(
+      MachineKey.fromJson(jsonDecode(
+        File('${store.machineDir.path}/manifest.json').readAsStringSync(),
+      ) as Map<String, Object?>),
+      fakeKey(),
     );
   });
 }

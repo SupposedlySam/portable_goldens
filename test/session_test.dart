@@ -112,6 +112,32 @@ void main() {
     expect(flutter.testRuns, isEmpty);
   });
 
+  test('the builder itself refuses inside a build, before running anything, '
+      'for a caller that skipped the session', () async {
+    final head = await repo.git(['rev-parse', 'HEAD']);
+    final calls = <String>[];
+    final into = Directory('${cache.path}/into')..createSync();
+
+    await expectLater(
+      BaselineBuilder(
+        repo: (await GitRepo.open(repo.dir))!,
+        flutterRoot: '/fake/flutter',
+        environment: const {childEnvironmentVariable: '1'},
+        runProcess: (executable, arguments,
+            {workingDirectory, environment, includeParentEnvironment = true}) {
+          calls.add('$executable ${arguments.join(' ')}');
+          return FakeFlutter().call(executable, arguments,
+              workingDirectory: workingDirectory, environment: environment);
+        },
+      ).build(head, into),
+      throwsA(isA<BuildFailure>().having(
+        (f) => f.message, 'message', startsWith('refused'),
+      )),
+    );
+    expect(calls, isEmpty);
+    expect(into.listSync(), isEmpty);
+  });
+
   group('a golden this branch changed', () {
     late String branchPoint;
 
