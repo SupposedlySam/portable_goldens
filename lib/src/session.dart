@@ -29,21 +29,33 @@ class MachineBaseline extends GoldenBaseline {
   final String keyId;
 }
 
-/// The golden is changed by this branch, so the render is what it should be.
+/// The png differs from HEAD, staged, unstaged or new: no commit has it to
+/// render, so it is compared exactly with itself in the working tree.
 ///
-/// Its committed png differs from the branch's merge-base: changed on this
-/// branch, uncommitted, or new. The change is the point of the work, so no
-/// older render can be its baseline; the working tree's own render is, and the
-/// test passes. That comparison is of a render with itself, so it says
-/// nothing; the comparator records the golden, with its diff against the
-/// committed image, for the `report` command to list as changed by this
-/// branch.
-class BranchChangedBaseline extends GoldenBaseline {
-  /// The branch changed the golden since [base].
-  const BranchChangedBaseline(this.base);
+/// That png is normally what `--update-goldens` just wrote on this machine,
+/// so the compare is this machine against this machine. Once committed, the
+/// golden has a commit to render, and is a [MachineBaseline] again.
+class WorkingTreeBaseline extends GoldenBaseline {
+  /// The png in the working tree.
+  const WorkingTreeBaseline();
+}
+
+/// How this branch changed a golden, for the report: what the png was when
+/// the branch left the default branch.
+class BranchChange {
+  /// The branch changed the golden since [base]; [image] is what it was
+  /// there, described by [was], or null when the golden is new.
+  const BranchChange({required this.base, required this.image, required this.was});
 
   /// The commit the branch is measured from.
   final String base;
+
+  /// The golden as it was at [base]: this machine's render where it can be
+  /// built, else the png committed there.
+  final List<int>? image;
+
+  /// What [image] is, in words.
+  final String was;
 }
 
 /// The committed image itself, as a plain `LocalFileComparator` would use.
@@ -103,9 +115,7 @@ class MachineGoldens {
     if (relative == null) {
       return const CommittedBaseline('the golden is outside the repository');
     }
-    if (context.changed.contains(relative)) {
-      return BranchChangedBaseline(context.base);
-    }
+    if (context.dirty.contains(relative)) return const WorkingTreeBaseline();
     final commit = await repo.lastCommitOf(relative);
     if (commit == null) {
       return const CommittedBaseline('no commit has the golden');
@@ -114,11 +124,7 @@ class MachineGoldens {
     final inPackage = relative.substring(repo.packagePrefix.length);
     final store = context.store!;
     try {
-      await (_fills[commit] ??= store.fill(
-        commit,
-        unit,
-        (into) => context.builder!.build(commit, into),
-      ));
+      await build(commit);
     } on CheckoutUnavailable catch (unavailable) {
       return CommittedBaseline('$unavailable');
     }
@@ -140,24 +146,66 @@ class MachineGoldens {
   /// package) whose baselines are missing on this machine, by the commit
   /// that last changed each.
   ///
-  /// Goldens changed by this branch are left out: the working tree is their
-  /// baseline, so nothing is built for them.
+  /// A png that differs from HEAD is left out, since the working tree is its
+  /// baseline. A golden this branch changed also needs the commit it was
+  /// last changed in before the branch, for the report's diff.
   Future<Map<String, List<String>>> missing(String pathspec) async {
     final context = await _context;
     if (context.fallback != null) return const {};
     final repo = context.repo!;
     final byCommit = <String, List<String>>{};
-    for (final golden in await goldens(pathspec)) {
-      if (context.changed.contains(golden)) continue;
-      final commit = await repo.lastCommitOf(golden);
-      if (commit == null) continue;
+    Future<void> need(String golden, {String? at}) async {
+      final commit = await repo.lastCommitOf(golden, at: at);
+      if (commit == null) return;
       final inPackage = golden.substring(repo.packagePrefix.length);
       if (context.store!.baseline(commit, context.unit, inPackage) != null) {
-        continue;
+        return;
       }
       (byCommit[commit] ??= []).add(golden);
     }
+
+    for (final golden in await goldens(pathspec)) {
+      if (!context.dirty.contains(golden)) await need(golden);
+      if (context.changed.contains(golden)) await need(golden, at: context.base);
+    }
     return byCommit;
+  }
+
+  /// How this branch changed the golden at [path], or null when it did not.
+  ///
+  /// Never throws: the report's diff is information, so a base that cannot be
+  /// built here falls back to the png committed there.
+  Future<BranchChange?> branchChange(String path) async {
+    final context = await _context;
+    final repo = context.repo;
+    if (repo == null) return null;
+    final relative = _relativeTo(repo.topLevel, path);
+    if (relative == null || !context.changed.contains(relative)) return null;
+    final base = context.base;
+    final commit = await repo.lastCommitOf(relative, at: base);
+    if (commit == null) {
+      return BranchChange(base: base, image: null, was: 'new on this branch');
+    }
+    final inPackage = relative.substring(repo.packagePrefix.length);
+    try {
+      await build(commit);
+      final file = context.store!.baseline(commit, context.unit, inPackage);
+      if (file != null) {
+        return BranchChange(
+          base: base,
+          image: await file.readAsBytes(),
+          was: "this machine's render of ${_short(commit)}, before the branch",
+        );
+      }
+    } on Object {
+      // A base that does not build here: the png committed there instead.
+    }
+    return BranchChange(
+      base: base,
+      image: await repo.show(commit, relative),
+      was: 'the png committed at ${_short(commit)}, before the branch, '
+          'perhaps rendered on another machine',
+    );
   }
 
   /// Builds [commit]'s baselines, once.
@@ -180,7 +228,8 @@ class MachineGoldens {
     return repo.trackedFiles(':(glob)${repo.packagePrefix}$pathspec');
   }
 
-  /// The goldens matching [pathspec] that this branch changed, repo-relative.
+  /// The goldens matching [pathspec] that this branch changed since its
+  /// merge-base with the default branch, repo-relative.
   Future<List<String>> changedByBranch(String pathspec) async {
     final context = await _context;
     final repo = context.repo;
@@ -237,6 +286,7 @@ class MachineGoldens {
       repo: repo,
       base: base,
       changed: await repo.changedSince(base),
+      dirty: await repo.dirty(),
       store: store,
       unit: prefix.isEmpty
           ? 'root'
@@ -274,11 +324,14 @@ String _real(String path) {
   return '${_real(path.substring(0, cut))}${path.substring(cut)}';
 }
 
+String _short(String sha) => sha.length > 10 ? sha.substring(0, 10) : sha;
+
 class _Context {
   const _Context({
     required this.repo,
     required this.base,
     required this.changed,
+    required this.dirty,
     required this.store,
     required this.unit,
     required this.builder,
@@ -288,6 +341,7 @@ class _Context {
     : repo = null,
       base = '',
       changed = const {},
+      dirty = const {},
       store = null,
       unit = '',
       builder = null;
@@ -296,6 +350,7 @@ class _Context {
   final GitRepo? repo;
   final String base;
   final Set<String> changed;
+  final Set<String> dirty;
   final BaselineStore? store;
   final String unit;
   final BaselineBuilder? builder;

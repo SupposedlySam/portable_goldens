@@ -75,8 +75,9 @@ class FakeFlutter {
     this.draw,
   });
 
-  /// The bytes a run writes for a golden; text naming it, by default.
-  final List<int> Function(String golden)? draw;
+  /// The bytes a run at a commit writes for a golden; text naming both, by
+  /// default.
+  final List<int> Function(String golden, String commit)? draw;
 
   /// The goldens a test run writes.
   final List<String> renders;
@@ -109,14 +110,13 @@ class FakeFlutter {
     testRuns.add((args: arguments, env: environment ?? const {}));
     final head = await Process.run('git', ['rev-parse', 'HEAD'],
         workingDirectory: workingDirectory);
+    final commit = (head.stdout as String).trim();
     for (final golden in renders) {
       final file = File('$workingDirectory/$golden')..createSync(recursive: true);
       if (draw case final draw?) {
-        file.writeAsBytesSync(draw(golden));
+        file.writeAsBytesSync(draw(golden, commit));
       } else {
-        file.writeAsStringSync(
-          'rendered $golden at ${(head.stdout as String).trim()}',
-        );
+        file.writeAsStringSync('rendered $golden at $commit');
       }
     }
     return ProcessResult(0, testExitCode, 'test output', 'Some tests failed.');

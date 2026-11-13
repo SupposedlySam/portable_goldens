@@ -28,42 +28,66 @@ class GitRepo {
 
   /// The commit that last changed [path], or null when no commit has it.
   ///
-  /// `git log -1 -- <path>`, with git's default history simplification: a
-  /// merge that took the file unchanged from one side is skipped in favour of
-  /// the commit on that side that changed it, whose checkout renders the same
-  /// image.
-  Future<String?> lastCommitOf(String path) async {
-    final sha = await run(['log', '-1', '--format=%H', '--', path]);
+  /// `git log -1 -- <path>`, from HEAD or from [at], with git's default
+  /// history simplification: a merge that took the file unchanged from one
+  /// side is skipped in favour of the commit on that side that changed it,
+  /// whose checkout renders the same image.
+  Future<String?> lastCommitOf(String path, {String? at}) async {
+    final sha = await run(['log', '-1', '--format=%H', ?at, '--', path]);
     return sha == null || sha.isEmpty ? null : sha;
   }
 
-  /// The commit this branch's own changes are measured from.
+  /// The bytes of [path] as [commit] has it, or null when it has none.
+  Future<List<int>?> show(String commit, String path) async {
+    try {
+      final result = await Process.run(
+        'git',
+        ['show', '$commit:$path'],
+        workingDirectory: topLevel,
+        stdoutEncoding: null,
+      );
+      return result.exitCode == 0 ? result.stdout as List<int> : null;
+    } on ProcessException {
+      return null;
+    }
+  }
+
+  /// The commit this branch's own changes are measured from, for the report.
   ///
   /// The merge-base of HEAD with the default branch, not the default branch's
   /// tip: once main moves on, a diff against its tip would also hold every
   /// golden other people changed there since this branch left it, and list
-  /// them as this branch's. [baseRef] overrides the default branch. With no
-  /// default branch to be found it is HEAD, so only uncommitted changes count.
+  /// them as this branch's. [baseRef] overrides the default branch. Of the
+  /// candidates that resolve (`origin/HEAD`, `origin/main`, `origin/master`,
+  /// `main`, `master`), the newest merge-base wins: an `origin` that is a
+  /// stale fork, or a local main nobody pulled, has an older one, and would
+  /// hand this branch goldens it merged in from elsewhere. With none, it is
+  /// HEAD, so only uncommitted changes count.
   Future<String?> branchBase({String? baseRef}) async {
-    final candidates = [
-      ?baseRef,
-      if (baseRef == null) ...[
-        ?await run(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']),
-        // A remote's branch before a local one: a stale local main has an
-        // older merge-base, and would hand this branch goldens it merged in
-        // from origin.
-        'origin/main',
-        'origin/master',
-        'main',
-        'master',
-      ],
-    ];
+    final candidates = baseRef != null
+        ? [baseRef]
+        : [
+            ?await run(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']),
+            'origin/main',
+            'origin/master',
+            'main',
+            'master',
+          ];
+    String? newest;
     for (final ref in candidates) {
       final base = await run(['merge-base', 'HEAD', ref]);
-      if (base != null && base.isNotEmpty) return base;
+      if (base == null || base.isEmpty) continue;
+      if (newest == null ||
+          await run(['merge-base', '--is-ancestor', newest, base]) != null) {
+        newest = base;
+      }
     }
-    return run(['rev-parse', 'HEAD']);
+    return newest ?? run(['rev-parse', 'HEAD']);
   }
+
+  /// The paths whose working-tree content differs from HEAD: staged,
+  /// unstaged, or new and not ignored. Such a png has no commit to render.
+  Future<Set<String>> dirty() => changedSince('HEAD');
 
   /// The paths whose working-tree content differs from [base]: committed on
   /// this branch, staged, unstaged, or new and not ignored.

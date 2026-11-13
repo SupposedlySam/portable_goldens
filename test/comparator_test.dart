@@ -53,7 +53,7 @@ void main() {
   }) {
     final dir = packageDir ?? repo.dir;
     final fake = flutter ??
-        FakeFlutter(renders: ['test/goldens/a.png'], draw: (_) => renderedHere);
+        FakeFlutter(renders: ['test/goldens/a.png'], draw: (_, _) => renderedHere);
     return MachineGoldenComparator(
       Uri.file('$dir/test/a_test.dart'),
       goldens: MachineGoldens(
@@ -105,22 +105,49 @@ void main() {
   });
 
   group('a golden this branch changed', () {
+    // What the branch's commit renders on this machine, where it moved a.
+    late Uint8List moved;
+    late String branchPoint;
+    late String branchCommit;
+
     setUp(() async {
+      moved = await dot(3);
+      branchPoint = await repo.git(['rev-parse', 'HEAD']);
       await repo.git(['checkout', '--quiet', '-b', 'feature']);
-      File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(renderedHere);
-      await repo.commit('a moves');
+      File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(moved);
+      branchCommit = await repo.commit('a moves');
     });
 
-    test('passes against its own render, and is reported with its diff '
-        'against the committed image', () async {
-      final flutter = FakeFlutter();
-      final machine = comparator(flutter: flutter);
+    FakeFlutter drawing() => FakeFlutter(
+      renders: ['test/goldens/a.png'],
+      draw: (_, commit) => commit == branchCommit ? moved : renderedHere,
+    );
 
-      expect(await machine.compare(onePixelOff, golden), isTrue);
+    test("committed, one pixel off its commit's render fails", () async {
+      await expectLater(
+        comparator(flutter: drawing()).compare(onePixelOff, golden),
+        throwsA(isA<FlutterError>().having(
+          (e) => e.message,
+          'message',
+          contains("this machine's baseline, rendered from commit "
+              '${branchCommit.substring(0, 10)}'),
+        )),
+      );
+    });
 
-      expect(flutter.testRuns, isEmpty);
+    test("committed, its commit's render passes and is reported with its "
+        "diff against this machine's render from before the branch",
+        () async {
+      final machine = comparator(flutter: drawing());
+
+      expect(await machine.compare(moved, golden), isTrue);
+
       final entry = machine.report.read().single;
       expect(entry.outcome, GoldenOutcome.changed);
+      expect(
+        entry.baseline,
+        contains("this machine's render of ${branchPoint.substring(0, 10)}"),
+      );
       expect(
         entry.diffs,
         contains('${repo.dir}/test/failures/a_isolatedDiff_branch.png'),
@@ -128,7 +155,7 @@ void main() {
       expect(File(entry.diffs.first).existsSync(), isTrue);
     });
 
-    test('that renders exactly as committed is reported with no diff',
+    test('that renders as it did before the branch is reported with no diff',
         () async {
       final machine = comparator();
 
@@ -138,13 +165,31 @@ void main() {
       expect(entry.outcome, GoldenOutcome.changed);
       expect(entry.diffs, isEmpty);
     });
+
+    test('uncommitted, it is compared exactly with the working tree png',
+        () async {
+      File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(onePixelOff);
+      final flutter = drawing();
+      final machine = comparator(flutter: flutter);
+
+      expect(await machine.compare(onePixelOff, golden), isTrue);
+      await expectLater(
+        machine.compare(moved, golden),
+        throwsA(isA<FlutterError>().having(
+          (e) => e.message,
+          'message',
+          contains('the png in the working tree'),
+        )),
+      );
+      expect(machine.report.read().single.outcome, GoldenOutcome.failed);
+    });
   });
 
   test('a baseline build that fails fails the golden, naming the command',
       () async {
     final failing = FakeFlutter(
       renders: ['test/goldens/a.png'],
-      draw: (_) => renderedHere,
+      draw: (_, _) => renderedHere,
       testExitCode: 1,
     );
 
@@ -177,8 +222,12 @@ void main() {
       onePixelOff,
     );
     expect(baseline.readAsBytesSync(), renderedHere);
-    // Now uncommitted, the golden is the branch's: it passes as drawn.
+    // Now uncommitted, the png in the working tree is its baseline, exactly.
     expect(await comparator().compare(onePixelOff, golden), isTrue);
+    await expectLater(
+      comparator().compare(renderedHere, golden),
+      throwsFlutterError,
+    );
   });
 
   test('outside a git repository it is a plain comparator against the '

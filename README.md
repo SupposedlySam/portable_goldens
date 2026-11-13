@@ -53,8 +53,8 @@ dart run machine_goldens:report    # what failed, and what this branch changed
 - **`report`** lists two groups:
   1. Each golden that **failed** against this machine's baseline, with the paths of its diff
      images.
-  2. Each golden **changed by this branch**, with its diff against the committed image, or
-     "renders exactly as the committed image".
+  2. Each golden **changed by this branch**, with its diff against what it was before the
+     branch, or "no diff".
 
   It exits 1 if anything failed.
 
@@ -122,24 +122,34 @@ leave theirs behind.
 
 For each golden, the comparator decides in this order:
 
-1. **The branch changed the png.** The png's working-tree content differs from the
-   **merge-base** of HEAD with the default branch. That covers a committed, staged, unstaged or
-   new file. The merge-base is used rather than main's tip, because a main that has moved on
-   would otherwise list other people's goldens as this branch's. Here the baseline is the test's
-   own render. The test passes, and the golden is recorded as **changed by this branch**, with
-   its diff against the committed image, so a PR says what moved.
+1. **The png differs from HEAD**: staged, unstaged or new. No commit has it to render, so it
+   is compared exactly with the png in the working tree. That png is normally what
+   `--update-goldens` just wrote on this machine, so the compare is still this machine against
+   itself, and a render a pixel off it fails.
 2. **Otherwise**, its baseline is this machine's render of `git log -1 --format=%H -- <png>`,
-   the commit that last changed it. The compare is exact: `GoldenFileComparator.compareLists`, every pixel equal.
-   On failure, the diff images go to `failures/` beside the test, as with
-   `LocalFileComparator`, and the message names the commit and the baseline's path.
+   the commit that last changed it. A png committed on this branch is no exception: its
+   baseline is this machine's render of the branch's commit. The compare is exact:
+   `GoldenFileComparator.compareLists`, every pixel equal. On failure, the diff images go to
+   `failures/` beside the test, as with `LocalFileComparator`, and the message names the commit
+   and the baseline's path.
 3. **The committed image**, as a plain `LocalFileComparator` would compare. This is the fallback
    when there is no git, the package is outside a repository, no commit has the png, the commit
-   cannot be checked out (on a shallow clone, say), no engine revision is found, or the test runs
-   inside a baseline build. The reason is printed once per test process.
+   cannot be checked out, no engine revision is found, or the test runs inside a baseline build.
+   The reason is printed once per test process.
 
-The default branch is `origin/HEAD`, then `origin/main`, `origin/master`, `main` and `master`,
-the first that resolves. Set `MACHINE_GOLDENS_BASE` to a ref to choose another. With none of
-them, only uncommitted changes count.
+Whatever decided the test, a golden that passed and that this branch changed is recorded as
+**changed by this branch**, with its diff against what it was before the branch, so a PR says
+what moved. "Changed" means the png differs from the **merge-base** of HEAD with the default
+branch, rather than from main's tip, because a main that has moved on would otherwise list other
+people's goldens as this branch's. "Before the branch" is this machine's render of the commit
+that last changed the png at the merge-base; when that commit does not build here, the diff is
+against the png committed there instead, which another machine may have rendered. The diff is
+information for the review, never a verdict.
+
+The default branch is the newest merge-base among `origin/HEAD`, `origin/main`,
+`origin/master`, `main` and `master`, so a stale `origin/main` beside a fresh local `main` does
+not stretch the branch back past main. Set `MACHINE_GOLDENS_BASE` to a ref to choose another.
+With none of them, only uncommitted changes count.
 
 ### Building a baseline
 
@@ -176,8 +186,8 @@ that can be pasted into a shell) and the end of its output.
 `flutter test --update-goldens` writes the committed png, as it always has. It does **not**
 refresh the machine baseline, for two reasons:
 
-- The updated png is now uncommitted, so rule 1 already applies: the test's own render is its
-  baseline, and `report` lists the golden with its diff against the committed image.
+- The updated png is now uncommitted, so rule 1 already applies: the png just written is its
+  baseline, and `report` lists the golden with its diff against what it was before the branch.
 - The machine baseline is keyed by the commit that last changed the png. Writing today's render
   under that old commit would make the commit's baseline disagree with what it renders, and
   every other worktree on the machine would then compare against it.
@@ -201,8 +211,8 @@ which is where `report` reads them.
   for 12 goldens in one measured repository. That cost is paid once per commit per machine
   key, and again after every OS, engine or Dart update.
 - **A commit that no longer builds or passes** with today's SDK cannot produce a baseline, and
-  its goldens fail with the command that failed. Re-render the png on the branch (rule 1) to
-  move it to a commit that builds.
+  its goldens fail with the command that failed. Re-render the png on the branch and commit it
+  to move it to a commit that builds.
 - **The key is measured, not proven.** The CPU model is left out because the OS version alone
   separated the two machines that prompted this package. If two machines with the same key ever
   render differently, the key needs another field.

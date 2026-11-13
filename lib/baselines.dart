@@ -10,11 +10,12 @@ export 'src/machine_key.dart' show MachineKey;
 export 'src/report.dart' show GoldenOutcome, GoldenReport, ReportEntry;
 export 'src/session.dart'
     show
-        BranchChangedBaseline,
+        BranchChange,
         CommittedBaseline,
         GoldenBaseline,
         MachineBaseline,
         MachineGoldens,
+        WorkingTreeBaseline,
         baseEnvironmentVariable;
 export 'src/store.dart'
     show BaselineStore, BuildFailure, Built, cacheEnvironmentVariable, defaultCacheRoot;

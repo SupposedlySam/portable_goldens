@@ -69,57 +69,85 @@ class MachineGoldenComparator extends LocalFileComparator {
       throw FlutterError('Golden "$golden": $failure');
     }
     final inPackage = _inPackage(path);
-    switch (baseline) {
-      case CommittedBaseline(:final reason):
-        if (_told.add(reason) && !reason.contains('itself building')) {
-          stderr.writeln('machine_goldens: comparing with the committed '
-              'images, because $reason.');
-        }
-        return super.compare(imageBytes, golden);
-      case BranchChangedBaseline():
-        final result = await GoldenFileComparator.compareLists(
-          imageBytes,
-          await getGoldenBytes(golden),
-        );
-        final diffs = <String>[];
-        if (!result.passed) {
-          await generateFailureOutput(result, golden, basedir, key: 'branch');
-          diffs.addAll(_failureFiles(result, golden, 'branch'));
-        }
-        result.dispose();
-        report.record(ReportEntry(
-          golden: inPackage,
-          outcome: GoldenOutcome.changed,
-          baseline: 'changed by this branch since ${_short(baseline.base)}; '
-              'passed against its own render',
-          diffs: diffs,
-          at: DateTime.now(),
-        ));
-        return true;
-      case MachineBaseline(:final file, :final commit, :final keyId):
-        final result = await GoldenFileComparator.compareLists(
-          imageBytes,
-          await file.readAsBytes(),
-        );
-        if (result.passed) {
-          result.dispose();
-          report.clear(inPackage);
-          return true;
-        }
-        final error = await generateFailureOutput(result, golden, basedir);
-        final diffs = _failureFiles(result, golden, '');
-        result.dispose();
-        final against = "this machine's baseline, rendered from commit "
-            '${_short(commit)} (machine $keyId): ${file.path}';
-        report.record(ReportEntry(
-          golden: inPackage,
-          outcome: GoldenOutcome.failed,
-          baseline: against,
-          diffs: diffs,
-          at: DateTime.now(),
-        ));
-        throw FlutterError('$error\nCompared exactly against $against');
+    final (List<int> expected, String against) = switch (baseline) {
+      CommittedBaseline(:final reason) => (
+        await _committed(golden, reason),
+        'the committed image, because $reason',
+      ),
+      WorkingTreeBaseline() => (
+        await getGoldenBytes(golden),
+        'the png in the working tree, which differs from HEAD',
+      ),
+      MachineBaseline(:final file, :final commit, :final keyId) => (
+        await file.readAsBytes(),
+        "this machine's baseline, rendered from commit ${_short(commit)} "
+            '(machine $keyId): ${file.path}',
+      ),
+    };
+    final result = await GoldenFileComparator.compareLists(
+      imageBytes,
+      expected,
+    );
+    if (!result.passed) {
+      // Every kind of baseline records its failure, so `report` lists a
+      // golden that failed against the committed image too.
+      final error = await generateFailureOutput(result, golden, basedir);
+      final diffs = _failureFiles(result, golden, '');
+      result.dispose();
+      report.record(ReportEntry(
+        golden: inPackage,
+        outcome: GoldenOutcome.failed,
+        baseline: against,
+        diffs: diffs,
+        at: DateTime.now(),
+      ));
+      throw FlutterError('$error\nCompared exactly against $against');
     }
+    result.dispose();
+    await _passed(imageBytes, golden, path, inPackage);
+    return true;
+  }
+
+  Future<List<int>> _committed(Uri golden, String reason) {
+    if (_told.add(reason) && !reason.contains('itself building')) {
+      stderr.writeln('machine_goldens: comparing with the committed '
+          'images, because $reason.');
+    }
+    return getGoldenBytes(golden);
+  }
+
+  /// A golden that passed is listed when this branch changed it, with its
+  /// diff against what it was before the branch: information for a review,
+  /// never a verdict, since the compare that decides the test already ran.
+  Future<void> _passed(
+    Uint8List imageBytes,
+    Uri golden,
+    String path,
+    String inPackage,
+  ) async {
+    final change = await goldens.branchChange(path);
+    if (change == null) {
+      report.clear(inPackage);
+      return;
+    }
+    final diffs = <String>[];
+    final before = change.image;
+    if (before != null) {
+      final result = await GoldenFileComparator.compareLists(imageBytes, before);
+      if (!result.passed) {
+        await generateFailureOutput(result, golden, basedir, key: 'branch');
+        diffs.addAll(_failureFiles(result, golden, 'branch'));
+      }
+      result.dispose();
+    }
+    report.record(ReportEntry(
+      golden: inPackage,
+      outcome: GoldenOutcome.changed,
+      baseline: 'changed by this branch since ${_short(change.base)}; '
+          'compared with ${change.was}',
+      diffs: diffs,
+      at: DateTime.now(),
+    ));
   }
 
   String _goldenPath(Uri golden) =>

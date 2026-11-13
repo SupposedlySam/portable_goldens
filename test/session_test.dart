@@ -112,41 +112,68 @@ void main() {
     expect(flutter.testRuns, isEmpty);
   });
 
-  group('a golden this branch changed is its own baseline', () {
-    setUp(() => repo.git(['checkout', '--quiet', '-b', 'feature']));
+  group('a golden this branch changed', () {
+    late String branchPoint;
 
-    test('committed on the branch', () async {
+    setUp(() async {
+      branchPoint = await repo.git(['rev-parse', 'HEAD']);
+      await repo.git(['checkout', '--quiet', '-b', 'feature']);
+    });
+
+    test("committed on the branch: this machine's render of its commit, "
+        "with this machine's render from before the branch for the report",
+        () async {
+      repo.write('test/goldens/a.png', 'a, as the branch draws it');
+      final commit = await repo.commit('a changes');
+      final goldens = session(FakeFlutter());
+
+      final baseline = await goldens.baselineFor('test/goldens/a.png');
+      final change = await goldens.branchChange('test/goldens/a.png');
+
+      expect(baseline,
+          isA<MachineBaseline>().having((m) => m.commit, 'commit', commit));
+      expect(change!.base, branchPoint);
+      expect(String.fromCharCodes(change.image!),
+          'rendered test/goldens/a.png at $branchPoint');
+    });
+
+    test('a base that does not build here reports the png committed there',
+        () async {
       repo.write('test/goldens/a.png', 'a, as the branch draws it');
       await repo.commit('a changes');
+
+      final change = await session(FakeFlutter(testExitCode: 1))
+          .branchChange('test/goldens/a.png');
+
+      expect(String.fromCharCodes(change!.image!), 'committed a');
+      expect(change.was, contains('the png committed at'));
+    });
+
+    test('uncommitted: the png in the working tree, and nothing is built',
+        () async {
+      repo.write('test/goldens/a.png', 'a, not committed');
       final flutter = FakeFlutter();
 
-      final baseline = await session(flutter).baselineFor('test/goldens/a.png');
-
-      expect(baseline, isA<BranchChangedBaseline>());
+      expect(
+        await session(flutter).baselineFor('test/goldens/a.png'),
+        isA<WorkingTreeBaseline>(),
+      );
       expect(flutter.testRuns, isEmpty);
     });
 
-    test('uncommitted', () async {
-      repo.write('test/goldens/a.png', 'a, not committed');
-
-      expect(
-        await session(FakeFlutter()).baselineFor('test/goldens/a.png'),
-        isA<BranchChangedBaseline>(),
-      );
-    });
-
-    test('new', () async {
+    test('new: the png in the working tree, reported as new', () async {
       repo.write('test/goldens/c.png', 'c, new');
+      final goldens = session(FakeFlutter());
 
-      expect(
-        await session(FakeFlutter()).baselineFor('test/goldens/c.png'),
-        isA<BranchChangedBaseline>(),
-      );
+      expect(await goldens.baselineFor('test/goldens/c.png'),
+          isA<WorkingTreeBaseline>());
+      final change = await goldens.branchChange('test/goldens/c.png');
+      expect(change!.image, isNull);
+      expect(change.was, 'new on this branch');
     });
 
     test('and one it did not change is not, though main changed it since',
         () async {
-      final branchPoint = await repo.git(['rev-parse', 'HEAD']);
       await repo.git(['checkout', '--quiet', 'main']);
       repo.write('test/goldens/b.png', 'b, as main draws it now');
       await repo.commit('main moves on');
@@ -161,6 +188,23 @@ void main() {
       expect(await goldens.base, branchPoint);
       expect(baseline,
           isA<MachineBaseline>().having((m) => m.commit, 'commit', branchPoint));
+      expect(await goldens.changedByBranch('**/goldens/**/*.png'), isEmpty);
+      expect(await goldens.branchChange('test/goldens/b.png'), isNull);
+    });
+
+    test('a stale origin/main does not stretch the branch back past main',
+        () async {
+      // origin/main was fetched before main's last commit, the branch point.
+      await repo.git(['checkout', '--quiet', 'main']);
+      final stale = await repo.git(['rev-parse', 'HEAD']);
+      repo.write('test/goldens/b.png', 'b, as main draws it now');
+      final fresh = await repo.commit('main moves on');
+      await repo.git(['update-ref', 'refs/remotes/origin/main', stale]);
+      await repo.git(['checkout', '--quiet', '-b', 'topic']);
+
+      final goldens = session(FakeFlutter());
+
+      expect(await goldens.base, fresh);
       expect(await goldens.changedByBranch('**/goldens/**/*.png'), isEmpty);
     });
   });

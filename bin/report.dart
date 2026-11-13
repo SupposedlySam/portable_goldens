@@ -49,7 +49,7 @@ Future<void> main(List<String> args) async {
     if (entry == null || entry.outcome != GoldenOutcome.changed) {
       stdout.writeln('    not compared yet: run its test for a diff');
     } else if (entry.diffs.isEmpty) {
-      stdout.writeln('    renders exactly as the committed image');
+      stdout.writeln('    no diff: ${entry.baseline}');
     } else {
       for (final diff in entry.diffs) {
         stdout.writeln('    $diff');

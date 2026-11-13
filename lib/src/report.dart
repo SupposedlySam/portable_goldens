@@ -6,7 +6,8 @@ enum GoldenOutcome {
   /// It did not match this machine's baseline: the test failed.
   failed,
 
-  /// This branch changed it; the test passed against its own render.
+  /// It passed, and this branch changed it: listed with its diff against
+  /// what it was before the branch.
   changed,
 }
 
@@ -78,7 +79,7 @@ class GoldenReport {
     _file(entry.golden).writeAsStringSync(jsonEncode(entry.toJson()));
   }
 
-  /// Forgets [golden]: it matched this machine's baseline.
+  /// Forgets [golden]: it passed, and this branch did not change it.
   void clear(String golden) {
     final file = _file(golden);
     if (file.existsSync()) file.deleteSync();
