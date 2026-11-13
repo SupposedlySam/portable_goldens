@@ -1,6 +1,8 @@
 name: machine_goldens
 description: "A golden file comparator that compares each golden exactly against a baseline this machine rendered, built from the commit that last changed it."
 version: 0.1.0
+# Not on pub.dev yet; remove this line to publish.
+publish_to: none
 repository: https://github.com/SupposedlySam/showrunner_code/tree/main/packages/machine_goldens
 topics:
   - golden
