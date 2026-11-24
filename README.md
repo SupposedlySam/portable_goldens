@@ -79,6 +79,18 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
 `test/` covers every test. Nothing else changes: tests still call `matchesGoldenFile`, and
 `--update-goldens` still writes the committed pngs.
 
+`install()` replaces only the plain `LocalFileComparator` that `flutter test` sets. If something
+else is in place when it runs, such as another package's comparator or your own subclass of
+`LocalFileComparator`, it leaves that comparator alone and prints once, on stderr, that goldens
+compare with it and not with machine baselines. Pass `strict: true` to make that an error
+instead, so a suite cannot run with goldens that are not machine-checked:
+
+```dart
+PortableGoldenComparator.install(strict: true); // throws a StateError if it cannot install
+```
+
+Calling `install()` again is a no-op.
+
 ## Day to day
 
 ```sh

@@ -38,7 +38,9 @@ It is NOT the right tool when:
    }
    ```
 
-   If the file already exists, add the `install()` call before `await testMain()`.
+   If the file already exists, add the `install()` call before `await testMain()`. If another
+   comparator is already set there, `install()` leaves it and says so once on stderr;
+   `install(strict: true)` throws instead.
 3. Leave the tests alone: they keep calling `matchesGoldenFile`.
 4. In CI, check out with full history (`fetch-depth: 0` on GitHub Actions) and cache
    `~/.cache/portable_goldens` (Linux) between runs. README.md, "In CI", has a workflow.

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:portable_goldens/src/compare/notices.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/report/golden_report.dart';
 import 'package:portable_goldens/src/report/report_entry.dart';
@@ -36,20 +37,37 @@ final class PortableGoldenComparator extends LocalFileComparator {
   /// [packageDir] is the package under test, by default the current folder,
   /// which `flutter test` sets to the package's root. Every test file in the
   /// process shares one [MachineGoldens], so git is asked once.
-  static void install({String? packageDir}) {
-    final current = goldenFileComparator;
-    if (current is! LocalFileComparator) return;
-    final dir = packageDir ?? Directory.current.path;
-    final goldens = _shared[dir] ??= MachineGoldens(packageDir: dir);
-    goldenFileComparator = PortableGoldenComparator(
-      current.basedir.resolve('portable_goldens.dart'),
-      goldens: goldens,
-      report: GoldenReport(dir),
-    );
+  ///
+  /// Installing again is a no-op. Any other comparator in place (another
+  /// package's, or one a test set) is left alone, and goldens compare with
+  /// it, not with machine baselines: by default that is said once on
+  /// stderr, since a suite that installs another comparator per test must
+  /// still run; with [strict] it throws a [StateError], for a project that
+  /// wants every golden machine-checked.
+  static void install({String? packageDir, bool strict = false}) {
+    switch (goldenFileComparator) {
+      case PortableGoldenComparator():
+        return;
+      case final LocalFileComparator local
+          when local.runtimeType == LocalFileComparator:
+        final dir = packageDir ?? Directory.current.path;
+        final goldens = _shared[dir] ??= MachineGoldens(packageDir: dir);
+        goldenFileComparator = PortableGoldenComparator(
+          local.basedir.resolve('portable_goldens.dart'),
+          goldens: goldens,
+          report: GoldenReport(dir),
+        );
+      case final other:
+        final message =
+            'not installed: goldenFileComparator is a ${other.runtimeType}, '
+            'not the LocalFileComparator flutter test sets, so goldens '
+            'compare with it and not with machine baselines.';
+        if (strict) throw StateError('portable_goldens: $message');
+        Notices.process.once(message);
+    }
   }
 
   static final _shared = <String, MachineGoldens>{};
-  static final _told = <String>{};
 
   /// Resolves each golden's baseline.
   final MachineGoldens goldens;
@@ -110,10 +128,9 @@ final class PortableGoldenComparator extends LocalFileComparator {
   }
 
   Future<List<int>> _committed(Uri golden, String reason) {
-    if (_told.add(reason) && !reason.contains('itself building')) {
-      stderr.writeln(
-        'portable_goldens: comparing with the committed '
-        'images, because $reason.',
+    if (!reason.contains('itself building')) {
+      Notices.process.once(
+        'comparing with the committed images, because $reason.',
       );
     }
     return getGoldenBytes(golden);
