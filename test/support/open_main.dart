@@ -15,7 +15,7 @@ Future<void> main(List<String> args) async {
   final wait = start.difference(DateTime.now());
   if (!wait.isNegative) await Future<void>.delayed(wait);
   final store = BaselineStore.open(args[0], fakeKey());
-  await store.fill(args[1], 'root', (into) async {
+  await store.at(args[1], 'root').fill((into) async {
     File('${into.path}/test/goldens/a.png')
       ..createSync(recursive: true)
       ..writeAsStringSync('rendered at ${args[1]}');

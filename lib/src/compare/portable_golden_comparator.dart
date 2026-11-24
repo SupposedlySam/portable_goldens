@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'report.dart';
-import 'session.dart';
-import 'store.dart';
+import 'package:portable_goldens/src/git/sha.dart';
+import 'package:portable_goldens/src/report/golden_report.dart';
+import 'package:portable_goldens/src/report/report_entry.dart';
+import 'package:portable_goldens/src/session/golden_baseline.dart';
+import 'package:portable_goldens/src/session/machine_goldens.dart';
+import 'package:portable_goldens/src/store/build_failure.dart';
 
 /// Compares each golden exactly against this machine's baseline: the image
 /// the commit that last changed the golden renders on this machine.
@@ -22,14 +25,10 @@ import 'store.dart';
 /// The pixel comparison is `GoldenFileComparator.compareLists`, which passes
 /// only when every pixel is equal: there is no tolerance. `--update-goldens`
 /// writes the committed pngs, as `LocalFileComparator` does.
-class PortableGoldenComparator extends LocalFileComparator {
+final class PortableGoldenComparator extends LocalFileComparator {
   /// A comparator for the test file at [testFile], resolving baselines with
   /// [goldens] and recording outcomes in [report].
-  PortableGoldenComparator(
-    super.testFile, {
-    required this.goldens,
-    required this.report,
-  });
+  new(super.testFile, {required this.goldens, required this.report});
 
   /// Replaces the `LocalFileComparator` `flutter test` installed for this
   /// test file with one that compares against machine baselines.
@@ -80,7 +79,7 @@ class PortableGoldenComparator extends LocalFileComparator {
       ),
       MachineBaseline(:final file, :final commit, :final keyId) => (
         await file.readAsBytes(),
-        "this machine's baseline, rendered from commit ${_short(commit)} "
+        "this machine's baseline, rendered from commit ${shortSha(commit)} "
             '(machine $keyId): ${file.path}',
       ),
     };
@@ -152,7 +151,7 @@ class PortableGoldenComparator extends LocalFileComparator {
         golden: inPackage,
         outcome: GoldenOutcome.changed,
         baseline:
-            'changed by this branch since ${_short(change.base)}; '
+            'changed by this branch since ${shortSha(change.base)}; '
             'compared with ${change.was}',
         diffs: diffs,
         at: DateTime.now(),
@@ -177,5 +176,3 @@ class PortableGoldenComparator extends LocalFileComparator {
       getFailureFile(key.isEmpty ? name : '${name}_$key', golden, basedir).path,
   ];
 }
-
-String _short(String sha) => sha.length > 10 ? sha.substring(0, 10) : sha;

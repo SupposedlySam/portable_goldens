@@ -126,7 +126,7 @@ void main() {
     await expectLater(
       BaselineBuilder(
         repo: (await GitRepo.open(repo.dir))!,
-        flutterRoot: '/fake/flutter',
+        sdk: const FlutterSdk('/fake/flutter'),
         environment: const {childEnvironmentVariable: '1'},
         runProcess:
             (
@@ -135,6 +135,7 @@ void main() {
               workingDirectory,
               environment,
               includeParentEnvironment = true,
+              stdoutEncoding = systemEncoding,
             }) {
               calls.add('$executable ${arguments.join(' ')}');
               return FakeFlutter().call(
@@ -320,6 +321,34 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('a golden outside the package compares with the committed image, '
+      'and builds nothing', () async {
+    repo.write('app/pubspec.yaml', 'name: app\n');
+    await repo.commit('an app below the root');
+    final flutter = FakeFlutter();
+    final goldens = MachineGoldens(
+      packageDir: '${repo.dir}/app',
+      environment: const {'FLUTTER_ROOT': '/fake/flutter'},
+      key: fakeKey(),
+      cacheRoot: cache.path,
+      runProcess: flutter.call,
+    );
+
+    final outside = await goldens.baselineFor('${repo.dir}/test/goldens/a.png');
+
+    expect(
+      outside,
+      isA<CommittedBaseline>().having(
+        (c) => c.reason,
+        'reason',
+        'the golden is outside the package',
+      ),
+    );
+    expect(flutter.testRuns, isEmpty);
+    // The positive control: the same session does use machine baselines.
+    expect(await goldens.fallbackReason, isNull);
   });
 
   test('a commit that cannot be checked out compares with the committed '

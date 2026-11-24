@@ -1,6 +1,7 @@
-import 'builder.dart';
-import 'session.dart';
-import 'store.dart';
+import 'package:portable_goldens/src/build/checkout_unavailable.dart';
+import 'package:portable_goldens/src/git/sha.dart';
+import 'package:portable_goldens/src/session/machine_goldens.dart';
+import 'package:portable_goldens/src/store/build_failure.dart';
 
 /// The `prepare` command: builds every missing baseline of [goldens] that
 /// [pathspec] matches, telling [out] and [err], and returns the exit code.
@@ -21,9 +22,10 @@ Future<int> prepare(
     );
     return 0;
   }
-  out
-    ..writeln('Machine ${goldens.key.id}: ${goldens.key}')
-    ..writeln('Baselines in ${(await goldens.machineDir)!.path}');
+  out.writeln('Machine ${goldens.key.id}: ${goldens.key}');
+  if (await goldens.machineDir case final dir?) {
+    out.writeln('Baselines in ${dir.path}');
+  }
   final all = await goldens.goldens(pathspec);
   final changed = await goldens.changedByBranch(pathspec);
   final missing = await goldens.missing(pathspec);
@@ -31,7 +33,7 @@ Future<int> prepare(
   var failed = 0;
   for (final MapEntry(key: commit, value: paths) in missing.entries) {
     out.writeln(
-      'Building ${commit.substring(0, 10)} '
+      'Building ${shortSha(commit)} '
       '(${paths.length} golden${paths.length == 1 ? '' : 's'})...',
     );
     final started = DateTime.now();
@@ -60,7 +62,7 @@ Future<int> prepare(
   ];
   for (final (commit, path) in unwritten) {
     err.writeln(
-      '  the build of ${commit.substring(0, 10)} passed but did not '
+      '  the build of ${shortSha(commit)} passed but did not '
       'write $path',
     );
   }
@@ -75,11 +77,11 @@ Future<int> prepare(
     out.writeln('${all.length} goldens: every baseline is in place.');
     return 0;
   }
+  final goldensWord = unwritten.length == 1 ? 'golden' : 'goldens';
   final summary = [
     if (failed > 0) '$failed build${failed == 1 ? '' : 's'} failed',
     if (unwritten.isNotEmpty)
-      '${unwritten.length} golden${unwritten.length == 1 ? '' : 's'} not '
-          'written by a build that passed',
+      '${unwritten.length} $goldensWord not written by a build that passed',
   ].join('; ');
   out.writeln('$summary.');
   return 1;

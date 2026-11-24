@@ -26,15 +26,15 @@ void main() {
       'and rebuilt', () async {
     final store = BaselineStore.open(cache.path, fakeKey());
     // What a build killed half way leaves: an image, and no marker.
-    File('${store.unitDir('c0ffee', 'root').path}/test/goldens/a.png')
+    File('${store.at('c0ffee', 'root').dir.path}/test/goldens/a.png')
       ..createSync(recursive: true)
       ..writeAsStringSync('half written');
 
-    expect(store.isComplete('c0ffee', 'root'), isFalse);
-    expect(store.baseline('c0ffee', 'root', 'test/goldens/a.png'), isNull);
+    expect(store.at('c0ffee', 'root').isComplete, isFalse);
+    expect(store.at('c0ffee', 'root').baseline('test/goldens/a.png'), isNull);
 
     var builds = 0;
-    await store.fill('c0ffee', 'root', (into) {
+    await store.at('c0ffee', 'root').fill((into) {
       builds++;
       return render(into);
     });
@@ -42,7 +42,8 @@ void main() {
     expect(builds, 1);
     expect(
       store
-          .baseline('c0ffee', 'root', 'test/goldens/a.png')!
+          .at('c0ffee', 'root')
+          .baseline('test/goldens/a.png')!
           .readAsStringSync(),
       'rendered',
     );
@@ -50,10 +51,10 @@ void main() {
 
   test('a complete baseline is not built again', () async {
     final store = BaselineStore.open(cache.path, fakeKey());
-    await store.fill('c0ffee', 'root', render);
+    await store.at('c0ffee', 'root').fill(render);
 
     var builds = 0;
-    await store.fill('c0ffee', 'root', (into) {
+    await store.at('c0ffee', 'root').fill((into) {
       builds++;
       return render(into);
     });
@@ -65,7 +66,7 @@ void main() {
     final store = BaselineStore.open(cache.path, fakeKey());
     final writing = Completer<void>();
     final finish = Completer<void>();
-    final fill = store.fill('c0ffee', 'root', (into) async {
+    final fill = store.at('c0ffee', 'root').fill((into) async {
       final built = await render(into);
       writing.complete();
       await finish.future;
@@ -73,10 +74,13 @@ void main() {
     });
 
     await writing.future;
-    expect(store.baseline('c0ffee', 'root', 'test/goldens/a.png'), isNull);
+    expect(store.at('c0ffee', 'root').baseline('test/goldens/a.png'), isNull);
     finish.complete();
     await fill;
-    expect(store.baseline('c0ffee', 'root', 'test/goldens/a.png'), isNotNull);
+    expect(
+      store.at('c0ffee', 'root').baseline('test/goldens/a.png'),
+      isNotNull,
+    );
   });
 
   test('a manifest that disagrees with the key throws the folder away', () {
@@ -85,14 +89,19 @@ void main() {
     File('${dir.path}/manifest.json')
       ..createSync(recursive: true)
       ..writeAsStringSync(
-        '{"os":"macos","osVersion":"Version 26.6.2 (Build 25G83)",'
-        '"arch":"macos_arm64","engineRevision":"x","dartVersion":"3.13.4"}',
+        jsonEncode({
+          'os': 'macos',
+          'osVersion': 'Version 26.6.2 (Build 25G83)',
+          'arch': 'macos_arm64',
+          'engineRevision': 'x',
+          'dartVersion': '3.13.4',
+        }),
       );
     File('${dir.path}/c0ffee/root/.complete').createSync(recursive: true);
 
     final store = BaselineStore.open(cache.path, key);
 
-    expect(store.isComplete('c0ffee', 'root'), isFalse);
+    expect(store.at('c0ffee', 'root').isComplete, isFalse);
     expect(
       File('${dir.path}/manifest.json').readAsStringSync(),
       contains('26B131'),
@@ -102,13 +111,16 @@ void main() {
   test('an unreadable manifest is rewritten, and the baselines beside it are '
       'kept', () async {
     final key = fakeKey();
-    await BaselineStore.open(cache.path, key).fill('c0ffee', 'root', render);
+    await BaselineStore.open(cache.path, key).at('c0ffee', 'root').fill(render);
     // Half of one, as a reader saw it mid-write before writes were atomic.
     File('${cache.path}/${key.id}/manifest.json').writeAsStringSync('{"os":');
 
     final store = BaselineStore.open(cache.path, key);
 
-    expect(store.baseline('c0ffee', 'root', 'test/goldens/a.png'), isNotNull);
+    expect(
+      store.at('c0ffee', 'root').baseline('test/goldens/a.png'),
+      isNotNull,
+    );
     expect(
       File('${cache.path}/${key.id}/manifest.json').readAsStringSync(),
       contains('26B131'),
@@ -118,15 +130,15 @@ void main() {
   test('an image the marker does not list is not a baseline, nor is any '
       'image under a marker that does not parse', () async {
     final store = BaselineStore.open(cache.path, fakeKey());
-    await store.fill('c0ffee', 'root', render);
-    final dir = store.unitDir('c0ffee', 'root').path;
+    await store.at('c0ffee', 'root').fill(render);
+    final dir = store.at('c0ffee', 'root').dir.path;
     File('$dir/test/goldens/b.png').writeAsStringSync('copied in by hand');
 
-    expect(store.baseline('c0ffee', 'root', 'test/goldens/b.png'), isNull);
+    expect(store.at('c0ffee', 'root').baseline('test/goldens/b.png'), isNull);
 
     File('$dir/.complete').writeAsStringSync('{"files": [');
-    expect(store.isComplete('c0ffee', 'root'), isFalse);
-    expect(store.baseline('c0ffee', 'root', 'test/goldens/a.png'), isNull);
+    expect(store.at('c0ffee', 'root').isComplete, isFalse);
+    expect(store.at('c0ffee', 'root').baseline('test/goldens/a.png'), isNull);
   });
 
   test('what a killed build left behind is swept by the next build', () async {
@@ -143,7 +155,7 @@ void main() {
     }
     final otherUnit = Directory('$commitDir/.app.tmp-1-1')..createSync();
 
-    await store.fill('c0ffee', 'root', render);
+    await store.at('c0ffee', 'root').fill(render);
 
     for (final dir in left) {
       expect(dir.existsSync(), isFalse, reason: dir.path);
@@ -167,9 +179,9 @@ void main() {
       );
     }
 
-    final first = store.fill('c0ffee', 'root', failing);
+    final first = store.at('c0ffee', 'root').fill(failing);
     await started.future;
-    final second = store.fill('c0ffee', 'root', failing);
+    final second = store.at('c0ffee', 'root').fill(failing);
 
     await expectLater(first, throwsA(isA<BuildFailure>()));
     await expectLater(
@@ -181,7 +193,7 @@ void main() {
     expect(builds, 1);
   });
 
-  final dart = '${MachineKey.flutterRoot()}/bin/cache/dart-sdk/bin/dart';
+  final dart = '${FlutterSdk.current()?.root}/bin/cache/dart-sdk/bin/dart';
 
   test('two processes filling the same baseline at once build it once: the '
       'second waits on the lock', () async {
@@ -251,7 +263,8 @@ void main() {
     for (final commit in commits) {
       expect(
         store
-            .baseline(commit, 'root', 'test/goldens/a.png')
+            .at(commit, 'root')
+            .baseline('test/goldens/a.png')
             ?.readAsStringSync(),
         'rendered at $commit',
       );

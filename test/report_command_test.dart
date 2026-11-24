@@ -20,7 +20,7 @@ void main() {
   });
 
   Future<ProcessResult> report() => Process.run(
-    '${MachineKey.flutterRoot()}/bin/cache/dart-sdk/bin/dart',
+    '${FlutterSdk.current()?.root}/bin/cache/dart-sdk/bin/dart',
     [
       '--packages=${Directory.current.path}/.dart_tool/package_config.json',
       '${Directory.current.path}/bin/report.dart',

@@ -1,30 +1,45 @@
 import 'dart:io';
 
-/// The git facts the baselines are built from, for one package in one repo.
-///
-/// Paths in and out are relative to the repository's top level, with `/`.
-class GitRepo {
-  GitRepo._(this.topLevel, this.packagePrefix);
+import 'package:portable_goldens/src/git/package_location.dart';
+import 'package:portable_goldens/src/process/process_runner.dart';
 
-  /// The repo [packageDir] is in, or null when there is no git or the folder
-  /// is not inside a repository; the comparator then compares with the
+/// Every question this package asks git, for one package in one repository.
+///
+/// Paths in and out are relative to the repository's top level, with `/`;
+/// [location] converts them.
+final class GitRepo {
+  new _(this.location, this._run);
+
+  /// The repository [packageDir] is in, or null when there is no git or the
+  /// folder is not inside a repository; the comparator then compares with the
   /// committed image, as a plain `LocalFileComparator` would.
-  static Future<GitRepo?> open(String packageDir) async {
-    final top = await _git(packageDir, ['rev-parse', '--show-toplevel']);
-    final prefix = await _git(packageDir, ['rev-parse', '--show-prefix']);
+  static Future<GitRepo?> open(
+    String packageDir, {
+    ProcessRunner runProcess = Process.run,
+  }) async {
+    Future<String?> ask(List<String> args) async =>
+        _stdout(await _start(runProcess, args, packageDir));
+    final top = await ask(['rev-parse', '--show-toplevel']);
+    final prefix = await ask(['rev-parse', '--show-prefix']);
     if (top == null || prefix == null) return null;
-    return GitRepo._(top, prefix);
+    return GitRepo._(
+      PackageLocation(topLevel: top, prefix: prefix, packageDir: packageDir),
+      runProcess,
+    );
   }
 
-  /// The working tree's top level.
-  final String topLevel;
+  /// Where the package is in the repository.
+  final PackageLocation location;
 
-  /// The package's folder below [topLevel]: empty at the root, else ending in
-  /// `/`, e.g. `packages/app/`.
-  final String packagePrefix;
+  final ProcessRunner _run;
 
-  /// Runs git in [topLevel]; null when git fails or is missing.
-  Future<String?> run(List<String> args) => _git(topLevel, args);
+  /// Runs git in the top level; null when git could not be started.
+  Future<ProcessResult?> result(List<String> args) =>
+      _start(_run, args, location.topLevel);
+
+  /// Runs git in the top level and returns its trimmed output; null when git
+  /// failed or could not be started.
+  Future<String?> run(List<String> args) async => _stdout(await result(args));
 
   /// Whether the clone is shallow: its history stops at a boundary commit,
   /// which `git log -1 -- <path>` then names for every path older than it.
@@ -45,10 +60,10 @@ class GitRepo {
   /// The bytes of [path] as [commit] has it, or null when it has none.
   Future<List<int>?> show(String commit, String path) async {
     try {
-      final result = await Process.run(
+      final result = await _run(
         'git',
         ['show', '$commit:$path'],
-        workingDirectory: topLevel,
+        workingDirectory: location.topLevel,
         stdoutEncoding: null,
       );
       return result.exitCode == 0 ? result.stdout as List<int> : null;
@@ -87,7 +102,7 @@ class GitRepo {
         newest = base;
       }
     }
-    return newest ?? run(['rev-parse', 'HEAD']);
+    return newest ?? await run(['rev-parse', 'HEAD']);
   }
 
   /// The paths whose working-tree content differs from HEAD: staged,
@@ -96,37 +111,45 @@ class GitRepo {
 
   /// The paths whose working-tree content differs from [base]: committed on
   /// this branch, staged, unstaged, or new and not ignored.
-  Future<Set<String>> changedSince(String base) async {
-    final tracked = await run([
-      'diff',
-      '--name-only',
-      '--no-renames',
-      base,
-      '--',
-    ]);
-    final untracked = await run(['ls-files', '--others', '--exclude-standard']);
-    return {
-      for (final text in [tracked, untracked])
-        if (text != null)
-          for (final line in text.split('\n'))
-            if (line.isNotEmpty) line,
-    };
-  }
+  Future<Set<String>> changedSince(String base) async => {
+    ..._lines(await run(['diff', '--name-only', '--no-renames', base, '--'])),
+    ..._lines(await run(['ls-files', '--others', '--exclude-standard'])),
+  };
 
   /// The tracked files matching [pathspec], from the top level.
-  Future<List<String>> trackedFiles(String pathspec) async {
-    final text = await run(['ls-files', '--', pathspec]);
-    if (text == null || text.isEmpty) return const [];
-    return text.split('\n').where((line) => line.isNotEmpty).toList();
-  }
+  Future<List<String>> trackedFiles(String pathspec) async =>
+      _lines(await run(['ls-files', '--', pathspec]));
+
+  /// The tracked and the untracked, unignored files matching [pathspec].
+  Future<List<String>> workingFiles(String pathspec) async => _lines(
+    await run([
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '--',
+      pathspec,
+    ]),
+  );
 }
 
-Future<String?> _git(String dir, List<String> args) async {
+Future<ProcessResult?> _start(
+  ProcessRunner run,
+  List<String> args,
+  String dir,
+) async {
   try {
-    final result = await Process.run('git', args, workingDirectory: dir);
-    if (result.exitCode != 0) return null;
-    return (result.stdout as String).trim();
+    return await run('git', args, workingDirectory: dir);
   } on ProcessException {
     return null;
   }
 }
+
+String? _stdout(ProcessResult? result) => result == null || result.exitCode != 0
+    ? null
+    : (result.stdout as String).trim();
+
+List<String> _lines(String? text) => [
+  for (final line in (text ?? '').split('\n'))
+    if (line.isNotEmpty) line,
+];

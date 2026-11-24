@@ -15,4 +15,5 @@
 library;
 
 export 'baselines.dart';
-export 'src/comparator.dart' show PortableGoldenComparator;
+export 'src/compare/portable_golden_comparator.dart'
+    show PortableGoldenComparator;

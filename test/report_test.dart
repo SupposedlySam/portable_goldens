@@ -52,7 +52,7 @@ void main() {
     expect(GoldenReport(package.path).read(), isEmpty);
   });
 
-  test("where the run cannot be told, nothing is swept", () {
+  test('where the run cannot be told, nothing is swept', () {
     GoldenReport(
       package.path,
       run: () => 'earlier',

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portable_goldens/baselines.dart';
-import 'package:portable_goldens/src/prepare.dart';
+import 'package:portable_goldens/src/cli/prepare.dart';
 
 import 'support/repo.dart';
 

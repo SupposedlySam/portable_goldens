@@ -7,7 +7,7 @@
 import 'dart:io';
 
 import 'package:portable_goldens/baselines.dart';
-import 'package:portable_goldens/src/prepare.dart';
+import 'package:portable_goldens/src/cli/prepare.dart';
 
 import 'src/args.dart';
 

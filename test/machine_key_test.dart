@@ -55,17 +55,17 @@ void main() {
       write('bin/cache/engine.stamp', 'from-the-cache\n');
       write('bin/internal/engine.version', 'from-the-checkout\n');
 
-      expect(MachineKey.engineRevisionOf(root.path), 'from-the-cache');
+      expect(FlutterSdk(root.path).engineRevision, 'from-the-cache');
     });
 
     test("is the checkout's version file when the cache has no stamp", () {
       write('bin/internal/engine.version', 'from-the-checkout\n');
 
-      expect(MachineKey.engineRevisionOf(root.path), 'from-the-checkout');
+      expect(FlutterSdk(root.path).engineRevision, 'from-the-checkout');
     });
 
     test('is unknown in a folder that is no SDK, and the key says so', () {
-      expect(MachineKey.engineRevisionOf(root.path), isNull);
+      expect(FlutterSdk(root.path).engineRevision, isNull);
       expect(
         MachineKey.current(environment: {'FLUTTER_ROOT': root.path})
             .engineRevision,
@@ -90,54 +90,54 @@ void main() {
     test("is the commit the checkout's branch names, loose or packed", () {
       write('.git/HEAD', 'ref: refs/heads/stable\n');
       write('.git/packed-refs', '# pack-refs\n$sha refs/heads/stable\n');
-      expect(MachineKey.frameworkRevisionOf(root.path), sha);
+      expect(FlutterSdk(root.path).frameworkRevision, sha);
 
       write('.git/refs/heads/stable', '${'1' * 40}\n');
-      expect(MachineKey.frameworkRevisionOf(root.path), '1' * 40);
+      expect(FlutterSdk(root.path).frameworkRevision, '1' * 40);
     });
 
     test('is a detached HEAD itself', () {
       write('.git/HEAD', '$sha\n');
 
-      expect(MachineKey.frameworkRevisionOf(root.path), sha);
+      expect(FlutterSdk(root.path).frameworkRevision, sha);
     });
 
     test("is the tool's version file without a checkout, else unknown", () {
-      expect(MachineKey.frameworkRevisionOf(root.path), isNull);
+      expect(FlutterSdk(root.path).frameworkRevision, isNull);
 
       write('bin/cache/flutter.version.json', '{"frameworkRevision": "$sha"}');
-      expect(MachineKey.frameworkRevisionOf(root.path), sha);
+      expect(FlutterSdk(root.path).frameworkRevision, sha);
     });
 
     test(
       "matches git's own answer for this SDK",
       () async {
-        final sdk = MachineKey.flutterRoot()!;
+        final sdk = FlutterSdk.current()!.root;
         final git = await Process.run('git', [
           'rev-parse',
           'HEAD',
         ], workingDirectory: sdk);
 
         expect(
-          MachineKey.frameworkRevisionOf(sdk),
+          FlutterSdk(sdk).frameworkRevision,
           (git.stdout as String).trim(),
         );
       },
-      skip: Directory('${MachineKey.flutterRoot()}/.git').existsSync()
+      skip: Directory('${FlutterSdk.current()?.root}/.git').existsSync()
           ? false
           : 'the SDK is not a git checkout',
     );
   });
 
-  test('the SDK is FLUTTER_ROOT, or the folder above the executable\'s '
+  test("the SDK is FLUTTER_ROOT, or the folder above the executable's "
       'bin/cache', () {
     expect(
-      MachineKey.flutterRoot(environment: {'FLUTTER_ROOT': '/sdk'}),
+      FlutterSdk.current(environment: {'FLUTTER_ROOT': '/sdk'})?.root,
       '/sdk',
     );
     final exe = Platform.resolvedExecutable;
     expect(
-      MachineKey.flutterRoot(environment: const {}),
+      FlutterSdk.current(environment: const {})?.root,
       exe.substring(0, exe.lastIndexOf('/bin/cache/')),
     );
   });

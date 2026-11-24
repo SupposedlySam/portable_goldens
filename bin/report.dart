@@ -17,7 +17,7 @@ Future<void> main(List<String> args) async {
   final goldens = MachineGoldens(packageDir: dir);
   final entries = {for (final e in GoldenReport(dir).read()) e.golden: e};
   final repo = await GitRepo.open(dir);
-  final prefix = repo?.packagePrefix ?? '';
+  final prefix = repo?.location.prefix ?? '';
   final changed = [
     for (final path in await goldens.changedByBranch(pathspec))
       path.substring(prefix.length),

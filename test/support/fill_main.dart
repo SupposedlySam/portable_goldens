@@ -14,7 +14,7 @@ import 'repo.dart';
 
 Future<void> main(List<String> args) async {
   final store = BaselineStore.open(args[0], fakeKey());
-  await store.fill('c0ffee', 'root', (into) async {
+  await store.at('c0ffee', 'root').fill((into) async {
     File(args[1]).writeAsStringSync('$pid\n', mode: FileMode.append);
     while (!File(args[2]).existsSync()) {
       await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -25,6 +25,9 @@ Future<void> main(List<String> args) async {
     return const Built(['test/goldens/a.png'], 'fake');
   });
   stdout.writeln(
-    store.baseline('c0ffee', 'root', 'test/goldens/a.png')!.readAsStringSync(),
+    store
+        .at('c0ffee', 'root')
+        .baseline('test/goldens/a.png')!
+        .readAsStringSync(),
   );
 }

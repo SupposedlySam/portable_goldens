@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:portable_goldens/baselines.dart';
@@ -16,7 +17,7 @@ MachineKey fakeKey({String osVersion = 'Version 27.2.1 (Build 26B131)'}) =>
 /// A git repository in a temporary folder, with a package at its root whose
 /// `test/a_test.dart` draws `test/goldens/a.png` and `b.png`.
 class TestRepo {
-  TestRepo._(this.dir);
+  new _(this.dir);
 
   /// A repository on `main` with one commit.
   static Future<TestRepo> create() async {
@@ -57,7 +58,7 @@ class TestRepo {
   Future<String> commit(String message) async {
     await git(['add', '.']);
     await git(['commit', '--quiet', '-m', message]);
-    return git(['rev-parse', 'HEAD']);
+    return await git(['rev-parse', 'HEAD']);
   }
 
   /// Deletes the repository.
@@ -69,7 +70,7 @@ class TestRepo {
 /// `rendered <golden> at <commit>`. git runs for real.
 class FakeFlutter {
   /// Draws [renders] (package-relative), failing with [testExitCode].
-  FakeFlutter({
+  new({
     this.renders = const ['test/goldens/a.png', 'test/goldens/b.png'],
     this.testExitCode = 0,
     this.checkoutFails = false,
@@ -100,15 +101,17 @@ class FakeFlutter {
     String? workingDirectory,
     Map<String, String>? environment,
     bool includeParentEnvironment = true,
+    Encoding? stdoutEncoding = systemEncoding,
   }) async {
     if (executable == 'git') {
       if (checkoutFails && arguments.contains('add')) {
         return ProcessResult(0, 128, '', 'fatal: invalid reference');
       }
-      return Process.run(
+      return await Process.run(
         executable,
         arguments,
         workingDirectory: workingDirectory,
+        stdoutEncoding: stdoutEncoding,
       );
     }
     if (arguments.first == 'pub') return ProcessResult(0, 0, '', '');
