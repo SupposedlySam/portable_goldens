@@ -1,22 +1,62 @@
 # machine_goldens
 
-Golden tests that compare each golden exactly against a baseline **this machine** rendered, so
-two machines that draw the same widget a few pixels apart can both run the same goldens with no
-tolerance.
+Exact golden tests that pass on every machine. Each machine compares a golden against **its own
+render** of the commit that last changed it, so two machines that draw the same widget a few
+pixels apart can run the same committed goldens with no tolerance.
 
-## Why
+```text
+  committed png  ──  what the reviewer sees; written by --update-goldens, as always
+       │
+       │  git log -1 -- <png>   →  commit C
+       ▼
+  render of C on THIS machine   ◄── exact compare ──►   render of HEAD on THIS machine
+  (built once in a throwaway worktree, cached per machine)
+```
 
-Two Macs with the same Flutter, engine, Dart and `flutter_tester` binary rendered the same
-widgets 1 to 20 pixels apart, at the anti-aliased edges of circles. The only difference between
-them was the OS: macOS 26.6.2 (25G83) and macOS 27.2.1 (26B131). The goldens committed from one
-failed on the other, all 19 of them.
+## The problem
 
-A tolerance would hide that, and it would also hide a real 1-pixel regression. Instead, each
-machine keeps its own baseline of every golden and compares exactly against it. The committed
-pngs stay as they are: they are what a reviewer looks at, and what CI or a machine without git
-compares against.
+Goldens are only as portable as the renderer. Two Macs with the same Flutter, engine, Dart and
+`flutter_tester` binary rendered the same widgets 1 to 20 pixels apart, at the anti-aliased
+edges of circles. The only difference between them was the OS: macOS 26.6.2 (25G83) and macOS
+27.2.1 (26B131). The goldens committed from one failed on the other, all 19 of them.
 
-## Use
+The usual answers each give something up:
+
+| Approach | Examples on pub | What it costs |
+|---|---|---|
+| A pixel or perceptual **tolerance** | `golden_delicious`, `gleon`, alchemist's tolerance | A real 1-pixel regression passes too. |
+| **Per-platform folders**, Ahem-font CI goldens | `alchemist` | One set of pngs per platform to keep up to date; CI goldens show boxes, not text; two Macs on different OS versions are still "one platform". |
+| One **pinned environment** for every render | `golden_runner` (Docker) | Every golden run goes through a container, which still sometimes disagrees with CI. |
+| **Compare only on one machine** | many suites in practice | Everyone else skips, or regenerates and commits noise. |
+
+machine_goldens keeps the compare exact and the committed pngs unchanged, and moves the question
+from "does this machine draw what that machine drew?" to "does this code draw what the code that
+made the png drew, **here**?".
+
+What follows from that:
+
+- **No tolerance.** `GoldenFileComparator.compareLists`: every pixel equal, or it fails.
+- **One set of pngs.** Nothing per platform, nothing per developer, nothing extra committed.
+- **An OS, engine or Flutter upgrade does not churn the goldens.** The new environment gets its
+  own baselines, rendered from the same commits, so only a change in *your* code fails a test.
+- **A dependency upgrade that moves pixels is caught**, when the package commits its
+  `pubspec.lock`: the baseline renders with the old commit's lock, the test with the new one.
+- **Every worktree and clone on a machine shares one cache**, so a commit is rendered once per
+  machine.
+
+## Requirements
+
+- Flutter 3.47 or later (Dart 3.13).
+- `git` on the `PATH`, and the package inside a git repository with **full history**. A shallow
+  clone, no git, or a package outside a repository falls back to the committed images (see
+  [Fallbacks](#fallbacks)).
+- macOS or Linux. Windows is not supported yet: path handling assumes `/`, so expect every golden
+  there to fall back to the committed image.
+- Tests that use `matchesGoldenFile` with Flutter's own `LocalFileComparator`. A package that
+  swaps in its own comparator during each test, as alchemist's `goldenTest` does, takes the
+  compare back from machine_goldens.
+
+## Setup
 
 ```yaml
 dev_dependencies:
@@ -35,35 +75,129 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
 }
 ```
 
-`flutter test` finds `flutter_test_config.dart` by walking up from each test file, so one file
-at `test/` covers every test. Nothing else changes: tests still call `matchesGoldenFile`.
+`flutter test` finds `flutter_test_config.dart` by walking up from each test file, so one file at
+`test/` covers every test. Nothing else changes: tests still call `matchesGoldenFile`, and
+`--update-goldens` still writes the committed pngs.
 
-### Before and after a run
+## Day to day
 
 ```sh
-dart run machine_goldens:prepare   # build every missing baseline now
+dart run machine_goldens:prepare   # optional: build every missing baseline now
 flutter test                       # compare
 dart run machine_goldens:report    # what failed, and what this branch changed
 ```
 
-- **`prepare`** builds the baselines that are missing, one commit at a time, and prints the
-  machine key and where the baselines live. Running it first is optional, because a test builds
-  what it needs. It does keep the build time out of the test run, and it shows a failed build on
-  its own rather than inside a test. It exits 1 if a build failed, or if a build passed without
-  writing a golden it should have: it asks the store again before it says every baseline is in
-  place.
-- **`report`** lists two groups:
-  1. Each golden that **failed**, against this machine's baseline or against the committed
-     image or working-tree png it fell back to, with the paths of its diff images.
-  2. Each golden **changed by this branch**, with its diff against what it was before the
-     branch, or "no diff".
+**Changing a widget on purpose.** Run `flutter test --update-goldens`, look at the new pngs,
+commit them. Until they are committed they compare against themselves in the working tree; once
+committed, their new commit is the baseline. `report` lists each one as *changed by this branch*
+with a diff against what it was before the branch, which is what a reviewer wants to see.
 
-  It exits 1 if anything failed.
+**A golden fails.** The message says what it was compared with (this machine's render of commit
+`C`, the working-tree png, or the committed image and why) and where Flutter wrote the diff
+images, in `failures/` beside the test as usual. `report` lists every failure from the last run.
 
-Both take `--goldens <pathspec>`, a git pathspec relative to the package. The default is
-`**/goldens/**/*.png`.
+**A baseline build fails.** The golden fails loudly with the commit, the command (ready to paste
+into a shell) and the end of its output. The usual cause is an old commit that no longer builds
+with today's SDK. Re-render the png on your branch and commit it: its baseline moves to a commit
+that builds.
+
+**After an OS or Flutter update.** The first run rebuilds the baselines it needs, one test run per
+commit. Run `prepare` once to pay that up front.
+
+### `prepare`
+
+Builds the baselines that are missing, one commit at a time, and prints the machine key and where
+the baselines live. It is optional, because a test builds what it needs, but it keeps the build
+time out of the test run and shows a failed build on its own rather than inside a test. It exits
+1 if a build failed, or if a build passed without writing a golden it should have: it asks the
+store again before it says every baseline is in place.
+
+### `report`
+
+Reads what the last test run recorded and lists two groups:
+
+1. Each golden that **failed**, against this machine's baseline or against the committed image or
+   working-tree png it fell back to, with the paths of its diff images.
+2. Each golden **changed by this branch**, with its diff against what it was before the branch, or
+   "no diff". A golden the run did not compare says "not compared yet".
+
+It exits 1 if anything failed.
+
+Both commands take `--goldens <pathspec>`, a git pathspec relative to the package. The default is
+`**/goldens/**/*.png`. Run them from the package's root.
+
+## In CI
+
+CI is one more machine. Give it what a laptop has:
+
+```yaml
+# GitHub Actions
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0               # full history: a shallow clone falls back to the committed images
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/machine_goldens
+    key: machine-goldens-${{ runner.os }}-${{ hashFiles('**/goldens/**/*.png') }}
+    restore-keys: machine-goldens-${{ runner.os }}-
+- run: dart run machine_goldens:prepare
+- run: flutter test
+- run: dart run machine_goldens:report
+```
+
+Without the cache, every run renders every baseline it needs: one `flutter test` of the golden
+files for each distinct commit that last changed a golden. With it, a run renders only the commits
+new since the cached one. The cache key may be anything; the machine key inside the cache already
+keeps one runner image's renders apart from another's.
+
+With a shallow clone, CI compares with the committed images like a plain `flutter test`, and
+says so once per test process.
 
 ## How it works
+
+### Which baseline a golden compares with
+
+For each golden, in this order:
+
+1. **The png differs from HEAD**: staged, unstaged or new. No commit has it to render, so it is
+   compared exactly with the png in the working tree. That png is normally what
+   `--update-goldens` just wrote on this machine, so the compare is still this machine against
+   itself, and a render a pixel off it fails.
+2. **Otherwise**, its baseline is this machine's render of `git log -1 --format=%H -- <png>`, the
+   commit that last changed it. A png committed on this branch is no exception: its baseline is
+   this machine's render of the branch's commit. On failure, the diff images go to `failures/`
+   beside the test, as with `LocalFileComparator`, and the message names the commit and the
+   baseline's path.
+3. **The committed image**, as a plain `LocalFileComparator` would compare. See
+   [Fallbacks](#fallbacks).
+
+Whatever decided the test, a golden that passed and that this branch changed is recorded as
+**changed by this branch**, with its diff against what it was before the branch, so a PR says
+what moved. "Changed" means the png differs from the **merge-base** of HEAD with the default
+branch, rather than from main's tip, because a main that has moved on would otherwise list other
+people's goldens as this branch's. "Before the branch" is this machine's render of the commit
+that last changed the png at the merge-base; when that commit does not build here, the diff is
+against the png committed there instead, which another machine may have rendered. The diff is
+information for the review, never a verdict.
+
+The default branch is the newest merge-base among `origin/HEAD`, `origin/main`, `origin/master`,
+`main` and `master`, so a stale `origin/main` beside a fresh local `main` does not stretch the
+branch back past main. Set `MACHINE_GOLDENS_BASE` to a ref to choose another. With none of them,
+only uncommitted changes count.
+
+### Fallbacks
+
+A golden compares with the committed image when any of these holds, and the reason is printed
+once per test process:
+
+- there is no git, or the package is outside a repository;
+- the clone is shallow: its history stops at a boundary commit, `git log -1` names that commit for
+  every png older than it, and its render is not what the png showed;
+- no commit has the png;
+- the commit cannot be checked out;
+- the Flutter engine or framework revision cannot be found, because an SDK update would then go
+  unnoticed;
+- the test runs inside a baseline build.
 
 ### The machine key
 
@@ -74,45 +208,39 @@ The key holds everything that changes how this machine renders a golden:
 | OS | `Platform.operatingSystem` |
 | OS version and build | `Platform.operatingSystemVersion`, e.g. `Version 27.2.1 (Build 26B131)` |
 | Architecture | `Abi.current()`, e.g. `macos_arm64` |
-| Engine revision | see below |
-| Framework revision | see below |
+| Engine revision | `<flutter>/bin/cache/engine.stamp`, else `bin/internal/engine.version` |
+| Framework revision | the SDK checkout's `.git/HEAD`, else `bin/cache/flutter.version.json` |
 | Dart version | `Platform.version` |
 
 A 16-hex-digit hash of those values (FNV-1a, 64-bit) names this machine's folder, and
-`manifest.json` beside it records the readable values. When any value changes, after an OS
-update say, the hash names a new folder. The baselines rendered before the change are never
-found, so they are rebuilt rather than reused silently. A folder whose manifest names another
-key (a collision, or a hand edit) is emptied.
+`manifest.json` beside it records the readable values. When any value changes, the hash names a
+new folder, so baselines rendered before the change are never reused. A folder whose manifest
+names another key (a collision, or a hand edit) is emptied.
 
 On the two Macs above, the keys differ in the OS version and build alone. The M4 Pro and M4 Max
 CPU models are not in the key: the OS already separated them.
 
-**Engine revision.** It is read from `<flutter>/bin/cache/engine.stamp`, which the tool writes
-when it downloads the engine artifacts. That file names the engine `flutter_tester` actually came
-from. The fallback is `bin/internal/engine.version`, which is the engine the framework checkout
-asks for; a checkout can change it before the cache catches up. `flutter --version --machine`
-reports the same value, but it costs a process launch in every test file. The SDK is found from
-`FLUTTER_ROOT`, which `flutter test` sets, or else from the running executable's path.
+**Engine revision.** `engine.stamp` is written by the tool when it downloads the engine
+artifacts, so it names the engine `flutter_tester` actually came from. `engine.version` is the
+engine the framework checkout asks for, which a checkout can change before the cache catches up.
+`flutter --version --machine` reports the same value, but costs a process launch in every test
+file. The SDK is found from `FLUTTER_ROOT`, which `flutter test` sets, or else from the running
+executable's path.
 
 **Framework revision.** Text layout, painting and every widget are framework code, so a framework
-commit on an unchanged engine, as on Flutter's main channel, can move pixels too. It is the commit
-the SDK's git checkout is at, read from `.git/HEAD` and the ref it names, without launching git.
-The fallback is `frameworkRevision` in `bin/cache/flutter.version.json`, which the tool writes.
-Uncommitted edits to the framework are not seen.
-
-When either revision cannot be found, every golden compares with the committed image, because an
-update would otherwise go unnoticed.
+commit on an unchanged engine, as on Flutter's main channel, can move pixels too. It is read from
+`.git/HEAD` and the ref it names, without launching git. Uncommitted edits to the framework are
+not seen.
 
 ### Where baselines live
 
 The cache is per user and outside every repository, so it is never committed and every worktree
-and clone shares it. A commit renders the same image wherever it is checked out on one machine.
+and clone shares it.
 
 | OS | Default |
 |---|---|
 | macOS | `~/Library/Caches/machine_goldens` |
 | Linux | `$XDG_CACHE_HOME/machine_goldens`, or `~/.cache/machine_goldens` |
-| Windows | `%LOCALAPPDATA%\machine_goldens` |
 
 Set `MACHINE_GOLDENS_CACHE` to put it somewhere else. The layout:
 
@@ -129,82 +257,43 @@ The unit is the package's folder in its repository (`root` at the top), so two p
 monorepo never fill each other's folder. To reclaim space, delete a key folder; old OS versions
 leave theirs behind.
 
-### Which baseline a golden compares with
-
-For each golden, the comparator decides in this order:
-
-1. **The png differs from HEAD**: staged, unstaged or new. No commit has it to render, so it
-   is compared exactly with the png in the working tree. That png is normally what
-   `--update-goldens` just wrote on this machine, so the compare is still this machine against
-   itself, and a render a pixel off it fails.
-2. **Otherwise**, its baseline is this machine's render of `git log -1 --format=%H -- <png>`,
-   the commit that last changed it. A png committed on this branch is no exception: its
-   baseline is this machine's render of the branch's commit. The compare is exact:
-   `GoldenFileComparator.compareLists`, every pixel equal. On failure, the diff images go to
-   `failures/` beside the test, as with `LocalFileComparator`, and the message names the commit
-   and the baseline's path.
-3. **The committed image**, as a plain `LocalFileComparator` would compare. This is the fallback
-   when there is no git, the package is outside a repository, the clone is shallow, no commit
-   has the png, the commit cannot be checked out, no engine or framework revision is found, or
-   the test runs inside a baseline build. The reason is printed once per test process. A shallow clone, as CI
-   often makes, counts because its history stops at a boundary commit: `git log -1` names that
-   commit for every png older than it, and its render is not what the png showed.
-
-Whatever decided the test, a golden that passed and that this branch changed is recorded as
-**changed by this branch**, with its diff against what it was before the branch, so a PR says
-what moved. "Changed" means the png differs from the **merge-base** of HEAD with the default
-branch, rather than from main's tip, because a main that has moved on would otherwise list other
-people's goldens as this branch's. "Before the branch" is this machine's render of the commit
-that last changed the png at the merge-base; when that commit does not build here, the diff is
-against the png committed there instead, which another machine may have rendered. The diff is
-information for the review, never a verdict.
-
-The default branch is the newest merge-base among `origin/HEAD`, `origin/main`,
-`origin/master`, `main` and `master`, so a stale `origin/main` beside a fresh local `main` does
-not stretch the branch back past main. Set `MACHINE_GOLDENS_BASE` to a ref to choose another.
-With none of them, only uncommitted changes count.
-
 ### Building a baseline
 
 The first golden that needs a commit's baselines builds all of them at once:
 
 1. Run `git worktree prune`, then `git worktree add --detach <checkout> <commit>`, with the
-   repository's hooks off. The checkout is `.<unit>.tmp-<pid>-<time>-checkout`, beside the
-   build's temporary folder in the cache.
-2. Run `flutter pub get`, then `flutter test --update-goldens <files>` in the package. The files
-   are the test files whose source contains `matchesGoldenFile`, or all of `test/` when none
-   does.
-3. Keep every png the run wrote, judged by mtime. The images checked out from git are never
-   taken for renders. A golden the run did not write is a failure.
+   repository's hooks off. The checkout is `.<unit>.tmp-<pid>-<time>-checkout`, beside the build's
+   temporary folder in the cache.
+2. Run `flutter pub get`, then `flutter test --update-goldens <files>` in the package, with the
+   same SDK as the test. The files are the commit's own test files whose source contains
+   `matchesGoldenFile`, or all of `test/` when none does.
+3. Keep every png the run wrote, judged by mtime. The images checked out from git are never taken
+   for renders. A golden the run did not write is a failure.
 4. Remove the worktree.
 
-The child run has `MACHINE_GOLDENS_CHILD=1` set and `FLUTTER_TEST` unset, so it compares with
-the committed image and never builds in turn.
+The child run has `MACHINE_GOLDENS_CHILD=1` set and `FLUTTER_TEST` unset, so it compares with the
+committed image and never builds in turn.
 
 `flutter test` runs test files in parallel processes, and other worktrees may build the same
 commit, so the build is safe to race:
 
-- **A lock.** `<unit>.lock` takes an advisory `fcntl` lock, which the OS releases when its
-  process dies. The second process waits for it, then finds the folder complete and builds
-  nothing. If the first build failed while it waited, it gets that failure instead of running
-  the build again.
+- **A lock.** `<unit>.lock` takes an advisory `fcntl` lock, which the OS releases when its process
+  dies. The second process waits for it, then finds the folder complete and builds nothing. If the
+  first build failed while it waited, it gets that failure instead of running the build again.
 - **Build, mark, rename.** The images and the `.complete` marker are written to a temporary
-  folder, which is renamed into place in one atomic step. A folder without the marker is
-  treated as missing and rebuilt, so a half-written baseline is never read as a good one, even
-  where the lock does not hold. So is a folder whose marker does not parse, and an image the
-  marker does not list.
-- **A sweep.** A build killed before its own cleanup (by SIGKILL, say) leaves its temporary
-  folder and checkout behind. The next build of that unit deletes every `.<unit>.tmp-*` under
-  the lock, and its `git worktree prune` drops the dead checkout's registration. Killing a test
-  process does not kill a `flutter test` it started: that orphan runs on in its checkout until
-  the sweep deletes it or it finishes, and nothing reads what it wrote.
+  folder, which is renamed into place in one atomic step. A folder without the marker is treated
+  as missing and rebuilt, so a half-written baseline is never read as a good one, even where the
+  lock does not hold. So is a folder whose marker does not parse, and an image the marker does not
+  list.
+- **A sweep.** A build killed before its own cleanup (by SIGKILL, say) leaves its temporary folder
+  and checkout behind. The next build of that unit deletes every `.<unit>.tmp-*` under the lock,
+  and its `git worktree prune` drops the dead checkout's registration. Killing a test process does
+  not kill a `flutter test` it started: that orphan runs on in its checkout until the sweep
+  deletes it or it finishes, and nothing reads what it wrote.
 - **An atomic manifest.** Every test process opens the store at once, so `manifest.json` is
-  written to a temporary file and renamed into place. A manifest that cannot be read is
-  rewritten, and the baselines beside it are kept: only a readable manifest of another key
-  empties the folder.
-
-**A failed build fails the golden loudly.** The message names the commit, the command (in a form
-that can be pasted into a shell) and the end of its output.
+  written to a temporary file and renamed into place. A manifest that cannot be read is rewritten,
+  and the baselines beside it are kept: only a readable manifest of another key empties the
+  folder.
 
 ### `--update-goldens`
 
@@ -214,12 +303,19 @@ refresh the machine baseline, for two reasons:
 - The updated png is now uncommitted, so rule 1 already applies: the png just written is its
   baseline, and `report` lists the golden with its diff against what it was before the branch.
 - The machine baseline is keyed by the commit that last changed the png. Writing today's render
-  under that old commit would make the commit's baseline disagree with what it renders, and
-  every other worktree on the machine would then compare against it.
+  under that old commit would make the commit's baseline disagree with what it renders, and every
+  other worktree on the machine would then compare against it.
 
 Once the png is committed, its new commit gets a baseline of its own the next time it is needed.
 
-### Environment variables
+### The report's records
+
+Each test run records its outcomes under `.dart_tool/machine_goldens/report/` in the package,
+which is where `report` reads them. The first write of a test process deletes the entries an
+earlier run left, so a golden fixed or deleted since is not listed. A run is told apart by the
+`flutter test` process all its test files share, its pid and start time, asked of `ps`.
+
+## Environment variables
 
 | Variable | Meaning |
 |---|---|
@@ -227,29 +323,35 @@ Once the png is committed, its new commit gets a baseline of its own the next ti
 | `MACHINE_GOLDENS_BASE` | The ref a branch's changes are measured from (its merge-base with HEAD). |
 | `MACHINE_GOLDENS_CHILD` | Set to `1` inside a baseline build. Set by the package, not by you. |
 
-Each test run records its outcomes under `.dart_tool/machine_goldens/report/` in the package,
-which is where `report` reads them. The first write of a test process deletes the entries an
-earlier run left, so a golden fixed or deleted since is not listed. A run is told apart by the
-`flutter test` process all its test files share, its pid and start time, asked of `ps`. On
-Windows there is no `ps`, so entries are only ever replaced there, not swept.
+## Libraries
+
+- `package:machine_goldens/machine_goldens.dart`: `MachineGoldenComparator`, for
+  `flutter_test_config.dart`. Exports everything below too.
+- `package:machine_goldens/baselines.dart`: the machinery in plain Dart, without `flutter_test`,
+  for tools built on it: `MachineKey`, `BaselineStore`, `BaselineBuilder`, `MachineGoldens` (which
+  baseline a golden uses, what is missing, what the branch changed) and `GoldenReport`.
 
 ## Limits
 
-- **A baseline build costs a test run.** It runs that commit's golden tests: about 18 seconds
-  for 12 goldens in one measured repository. That cost is paid once per commit per machine
-  key, and again after every OS, engine, framework or Dart update.
-- **A commit that no longer builds or passes** with today's SDK cannot produce a baseline, and
-  its goldens fail with the command that failed. Re-render the png on the branch and commit it
-  to move it to a commit that builds.
+- **A baseline build costs a test run.** It runs that commit's golden tests: about 18 seconds for
+  12 goldens in one measured repository. That cost is paid once per commit per machine key, and
+  again after every OS, engine, framework or Dart update.
+- **A commit that no longer builds or passes** with today's SDK cannot produce a baseline, and its
+  goldens fail with the command that failed. Re-render the png on the branch and commit it to move
+  it to a commit that builds.
 - **The key is measured, not proven.** The CPU model is left out because the OS version alone
   separated the two machines that prompted this package. If two machines with the same key ever
   render differently, the key needs another field.
 - **Nothing checks a committed png against its own commit's code.** The baseline is what the
-  commit renders here, never the png it committed, so a png committed stale (re-rendered before
-  a last code change, say) passes on every machine, and only a reviewer looking at it can tell.
-  `report` does not flag a render that differs from the committed png either: on any machine
-  but the one that rendered it, every golden differs from it, which is why this package exists,
-  so the flag would be noise that cannot tell a stale png from another machine's pixels.
+  commit renders here, never the png it committed, so a png committed stale (re-rendered before a
+  last code change, say) passes on every machine, and only a reviewer looking at it can tell.
+  `report` does not flag a render that differs from the committed png either: on any machine but
+  the one that rendered it, every golden differs from it, so the flag would be noise.
+- **The committed pngs drift from every machine but the last to render them.** That is by design
+  locally, but it means a run that falls back to the committed images (a shallow CI clone, say)
+  can fail where a full clone passes.
+- **A dependency change is caught only when the lock is committed.** Without a `pubspec.lock` at
+  the commit, its baseline resolves today's dependencies, the same as the test.
 - **The cache grows.** Nothing prunes old key folders or commits yet.
 
 ## Credit

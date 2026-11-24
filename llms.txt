@@ -1,0 +1,120 @@
+# machine_goldens
+
+> A Flutter golden-file comparator that makes exact golden tests pass on every machine. Each
+> golden is compared, pixel for pixel, against THIS machine's render of the commit that last
+> changed the golden, built once in a throwaway git worktree and cached per machine. The
+> committed pngs stay as they are, for review and for runs without git history. There is no
+> tolerance.
+
+Read README.md for the full design. This file is the short version for an agent that is adding
+the package to a project, running its goldens, or changing this package.
+
+## When it is the right tool
+
+- Goldens committed on one machine fail on another with a handful of pixels at anti-aliased
+  edges, on the same Flutter version. (Measured cause: a macOS version difference alone.)
+- The project wants exact compares, not a tolerance, and one set of committed pngs.
+
+It is NOT the right tool when:
+
+- the repository has no git history available (a shallow CI clone falls back to plain compares);
+- the tests use a package that installs its own comparator inside each test, such as alchemist's
+  `goldenTest`; it replaces this comparator for the test;
+- the tests run on Windows (not supported yet: every golden falls back to the committed image).
+
+## Adding it to a project
+
+1. `dev_dependencies: machine_goldens: ^0.1.0`
+2. Create `test/flutter_test_config.dart`:
+
+   ```dart
+   import 'dart:async';
+
+   import 'package:machine_goldens/machine_goldens.dart';
+
+   Future<void> testExecutable(FutureOr<void> Function() testMain) async {
+     MachineGoldenComparator.install();
+     await testMain();
+   }
+   ```
+
+   If the file already exists, add the `install()` call before `await testMain()`.
+3. Leave the tests alone: they keep calling `matchesGoldenFile`.
+4. In CI, check out with full history (`fetch-depth: 0` on GitHub Actions) and cache
+   `~/.cache/machine_goldens` (Linux) between runs. README.md, "In CI", has a workflow.
+
+## Running goldens
+
+Run these from the package root:
+
+```sh
+dart run machine_goldens:prepare   # build missing baselines now; exit 1 if a build failed
+flutter test                       # compare
+dart run machine_goldens:report    # failed goldens and goldens this branch changed; exit 1 on failure
+```
+
+To change a golden on purpose: `flutter test --update-goldens`, look at the png, commit it. An
+uncommitted png compares against itself in the working tree, so the run passes before the commit
+too. Never "fix" a failure by re-rendering without looking at the diff in `failures/`.
+
+## Reading a failure
+
+Every failure message ends with `Compared exactly against <what>`:
+
+| `<what>` | Meaning | What to do |
+|---|---|---|
+| `this machine's baseline, rendered from commit <sha>` | Current code draws differently from the commit that last changed the png, on this machine. A real regression, or an intended change. | Look at the diff images in `failures/`. If the change is intended, update and commit the golden. |
+| `the png in the working tree, which differs from HEAD` | The uncommitted png does not match what the code draws now. | Re-render, or revert the png. |
+| `the committed image, because <reason>` | Machine baselines were not used (see the reasons below), so this is a plain cross-machine compare and may be machine noise. | Fix the reason if you can (unshallow the clone, say). |
+
+`machine_goldens could not build the baselines of commit <sha>` means the old commit's
+`flutter pub get` or golden tests failed with today's SDK. The message carries the command, ready
+to paste into a shell, and the end of its output. The usual fix: re-render that golden on the
+current branch and commit it, which moves its baseline to a commit that builds.
+
+Fallback reasons, printed once per test process: no git; package outside a repository; shallow
+clone; no commit has the png; the commit cannot be checked out; the Flutter engine or framework
+revision cannot be found; running inside a baseline build.
+
+## Facts that are easy to get wrong
+
+- The baseline is keyed by the commit that last changed the PNG (`git log -1 -- <png>`), not by
+  HEAD, and is rendered by that commit's own tests.
+- `--update-goldens` writes the committed png only. It never writes the machine cache.
+- After an OS, engine, framework or Dart update, the machine key changes and every baseline is
+  rebuilt, so an SDK upgrade does not fail goldens. A pixel change from the SDK itself is not
+  reported as a failure: the baseline and the test render with the same SDK.
+- Nothing checks that a committed png matches its own commit's code. A stale png passes.
+- The cache lives outside the repository (macOS `~/Library/Caches/machine_goldens`, Linux
+  `$XDG_CACHE_HOME/machine_goldens` or `~/.cache/machine_goldens`) and is shared by every
+  worktree and clone. Override it with `MACHINE_GOLDENS_CACHE`.
+- "Changed by this branch" is measured from the merge-base with the default branch. Override the
+  ref with `MACHINE_GOLDENS_BASE`.
+- `MACHINE_GOLDENS_CHILD=1` marks a baseline build. Never set it yourself.
+
+## Working on this package
+
+| File | Owns |
+|---|---|
+| `lib/src/comparator.dart` | `MachineGoldenComparator`: the compare, failure output, report entries |
+| `lib/src/session.dart` | `MachineGoldens`: which baseline a golden uses, fallbacks, branch changes |
+| `lib/src/machine_key.dart` | `MachineKey`: what goes in the key and where each value is read |
+| `lib/src/store.dart` | `BaselineStore`: cache layout, lock, build-mark-rename, sweep |
+| `lib/src/builder.dart` | `BaselineBuilder`: worktree checkout, the child `flutter test` |
+| `lib/src/git.dart` | `GitRepo`: every git question asked |
+| `lib/src/report.dart` | `GoldenReport`: the last run's outcomes, for `report` |
+| `lib/src/prepare.dart`, `bin/` | the `prepare` and `report` commands |
+
+Rules the code already follows. Keep them:
+
+- An unknown never passes. A build that fails throws `BuildFailure` and fails the golden; it is
+  never treated as a match. A missing engine or framework revision falls back rather than
+  trusting a key that cannot see an update.
+- Only images the build wrote count, judged by mtime. A png checked out from git is another
+  machine's image and is never taken for a render.
+- Cache writes are atomic (a temporary file or folder, then a rename), because every test file
+  runs in its own process and they all open the store at once.
+- No dependencies beyond `flutter` and `flutter_test`.
+
+Verify with `flutter analyze` and `flutter test` from the repository root. The tests build real
+git repositories in temporary folders and run real `git`.

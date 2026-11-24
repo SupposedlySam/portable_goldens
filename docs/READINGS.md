@@ -5,5 +5,6 @@ search cannot tell you a page stopped making sense; only a whole read can.
 
 | Document | Read whole | At commit | Notes |
 |---|---|---|---|
-| `README.md` | 2026-11-24 | `efb7b83` | Read on extraction from showrunner_code. Accurate for a repository whose package is at the root: the baseline unit is then `root`. |
+| `README.md` | 2026-11-24 | rewritten in this commit | Rewritten against `lib/` read whole. The setup, `prepare`, `report`, the cross-machine pass and the shallow-clone fallback were run in a throwaway package. The CI workflow and the Windows claim were not run. |
+| `llms.txt` | 2026-11-24 | written in this commit | Written against `lib/` read whole. |
 | `CHANGELOG.md` | 2026-11-24 | `efb7b83` | |
