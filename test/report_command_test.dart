@@ -37,39 +37,61 @@ void main() {
       ..write('test/goldens/c.png', 'c, new');
     final diff = '${repo.dir}/test/failures/b_isolatedDiff.png';
     GoldenReport(repo.dir)
-      ..record(ReportEntry(
-        golden: 'test/goldens/b.png',
-        outcome: GoldenOutcome.failed,
-        baseline: "this machine's baseline",
-        diffs: [diff],
-        at: DateTime.now(),
-      ))
-      ..record(ReportEntry(
-        golden: 'test/goldens/a.png',
-        outcome: GoldenOutcome.changed,
-        baseline: 'its own render',
-        diffs: ['${repo.dir}/test/failures/a_isolatedDiff_branch.png'],
-        at: DateTime.now(),
-      ));
+      ..record(
+        ReportEntry(
+          golden: 'test/goldens/b.png',
+          outcome: GoldenOutcome.failed,
+          baseline: "this machine's baseline",
+          diffs: [diff],
+          at: DateTime.now(),
+        ),
+      )
+      ..record(
+        ReportEntry(
+          golden: 'test/goldens/a.png',
+          outcome: GoldenOutcome.changed,
+          baseline: 'its own render',
+          diffs: ['${repo.dir}/test/failures/a_isolatedDiff_branch.png'],
+          at: DateTime.now(),
+        ),
+      );
 
     final result = await report();
 
     expect(result.exitCode, 1, reason: '${result.stderr}');
     final out = result.stdout as String;
-    expect(out, contains("Failed against this machine's baseline (1):\n"
-        '  test/goldens/b.png\n    $diff\n'));
+    expect(
+      out,
+      contains(
+        "Failed against this machine's baseline (1):\n"
+        '  test/goldens/b.png\n    $diff\n',
+      ),
+    );
     expect(out, contains('Changed by this branch since '));
-    expect(out, contains('  test/goldens/a.png\n'
-        '    ${repo.dir}/test/failures/a_isolatedDiff_branch.png\n'));
-    expect(out, contains('  test/goldens/c.png\n'
-        '    not compared yet: run its test for a diff\n'));
+    expect(
+      out,
+      contains(
+        '  test/goldens/a.png\n'
+        '    ${repo.dir}/test/failures/a_isolatedDiff_branch.png\n',
+      ),
+    );
+    expect(
+      out,
+      contains(
+        '  test/goldens/c.png\n'
+        '    not compared yet: run its test for a diff\n',
+      ),
+    );
   });
 
   test('with nothing failed or changed, report says so and exits 0', () async {
     final result = await report();
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(result.stdout, contains("No golden failed against this machine's baseline."));
+    expect(
+      result.stdout,
+      contains("No golden failed against this machine's baseline."),
+    );
     expect(result.stdout, contains('No golden changed by this branch.'));
   });
 }

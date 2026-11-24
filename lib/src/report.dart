@@ -135,7 +135,8 @@ class GoldenReport {
     for (final file in dir.listSync().whereType<File>()) {
       if (!file.path.endsWith('.json')) continue;
       try {
-        final json = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+        final json =
+            jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
         if (json['run'] == current) continue;
       } on Object {
         // Half written by a killed run: as stale as any other.

@@ -10,7 +10,9 @@ import 'support/repo.dart';
 void main() {
   late Directory cache;
 
-  setUp(() => cache = Directory.systemTemp.createTempSync('portable_goldens_store'));
+  setUp(
+    () => cache = Directory.systemTemp.createTempSync('portable_goldens_store'),
+  );
   tearDown(() => cache.deleteSync(recursive: true));
 
   Future<Built> render(Directory into, {String content = 'rendered'}) async {
@@ -39,7 +41,9 @@ void main() {
 
     expect(builds, 1);
     expect(
-      store.baseline('c0ffee', 'root', 'test/goldens/a.png')!.readAsStringSync(),
+      store
+          .baseline('c0ffee', 'root', 'test/goldens/a.png')!
+          .readAsStringSync(),
       'rendered',
     );
   });
@@ -89,8 +93,10 @@ void main() {
     final store = BaselineStore.open(cache.path, key);
 
     expect(store.isComplete('c0ffee', 'root'), isFalse);
-    expect(File('${dir.path}/manifest.json').readAsStringSync(),
-        contains('26B131'));
+    expect(
+      File('${dir.path}/manifest.json').readAsStringSync(),
+      contains('26B131'),
+    );
   });
 
   test('an unreadable manifest is rewritten, and the baselines beside it are '
@@ -168,7 +174,9 @@ void main() {
     await expectLater(first, throwsA(isA<BuildFailure>()));
     await expectLater(
       second,
-      throwsA(isA<BuildFailure>().having((f) => f.message, 'message', 'exited 1')),
+      throwsA(
+        isA<BuildFailure>().having((f) => f.message, 'message', 'exited 1'),
+      ),
     );
     expect(builds, 1);
   });
@@ -215,10 +223,9 @@ void main() {
     }
     final builders = log.readAsLinesSync();
     expect(builders, hasLength(1));
-    expect(
-      [for (final (_, out) in results) out],
-      everyElement('rendered by ${builders.single}'),
-    );
+    expect([
+      for (final (_, out) in results) out,
+    ], everyElement('rendered by ${builders.single}'));
   });
 
   test('processes opening a store with no manifest yet, all at once, keep '
@@ -243,14 +250,18 @@ void main() {
     final store = BaselineStore.open(cache.path, fakeKey());
     for (final commit in commits) {
       expect(
-        store.baseline(commit, 'root', 'test/goldens/a.png')?.readAsStringSync(),
+        store
+            .baseline(commit, 'root', 'test/goldens/a.png')
+            ?.readAsStringSync(),
         'rendered at $commit',
       );
     }
     expect(
-      MachineKey.fromJson(jsonDecode(
-        File('${store.machineDir.path}/manifest.json').readAsStringSync(),
-      ) as Map<String, Object?>),
+      MachineKey.fromJson(
+        jsonDecode(
+          File('${store.machineDir.path}/manifest.json').readAsStringSync(),
+        ) as Map<String, Object?>,
+      ),
       fakeKey(),
     );
   });

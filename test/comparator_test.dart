@@ -14,7 +14,10 @@ Future<Uint8List> dot(int x) async {
   final recorder = ui.PictureRecorder();
   Canvas(recorder)
     ..drawRect(const Rect.fromLTWH(0, 0, 8, 8), Paint()..color = Colors.white)
-    ..drawRect(Rect.fromLTWH(x.toDouble(), 0, 1, 1), Paint()..color = Colors.black);
+    ..drawRect(
+      Rect.fromLTWH(x.toDouble(), 0, 1, 1),
+      Paint()..color = Colors.black,
+    );
   final image = await recorder.endRecording().toImage(8, 8);
   final png = await image.toByteData(format: ui.ImageByteFormat.png);
   return png!.buffer.asUint8List();
@@ -52,8 +55,12 @@ void main() {
     String? packageDir,
   }) {
     final dir = packageDir ?? repo.dir;
-    final fake = flutter ??
-        FakeFlutter(renders: ['test/goldens/a.png'], draw: (_, _) => renderedHere);
+    final fake =
+        flutter ??
+        FakeFlutter(
+          renders: ['test/goldens/a.png'],
+          draw: (_, _) => renderedHere,
+        );
     return PortableGoldenComparator(
       Uri.file('$dir/test/a_test.dart'),
       goldens: MachineGoldens(
@@ -67,13 +74,20 @@ void main() {
     );
   }
 
-  test("this machine's render passes, where the committed image would fail",
-      () async {
-    final plain = LocalFileComparator(Uri.file('${repo.dir}/test/a_test.dart'));
-    await expectLater(plain.compare(renderedHere, golden), throwsFlutterError);
+  test(
+    "this machine's render passes, where the committed image would fail",
+    () async {
+      final plain = LocalFileComparator(
+        Uri.file('${repo.dir}/test/a_test.dart'),
+      );
+      await expectLater(
+        plain.compare(renderedHere, golden),
+        throwsFlutterError,
+      );
 
-    expect(await comparator().compare(renderedHere, golden), isTrue);
-  });
+      expect(await comparator().compare(renderedHere, golden), isTrue);
+    },
+  );
 
   test('one pixel off fails, writes the diff images to failures/ and names '
       'the baseline', () async {
@@ -82,15 +96,19 @@ void main() {
 
     await expectLater(
       machine.compare(onePixelOff, golden),
-      throwsA(isA<FlutterError>().having(
-        (e) => e.message,
-        'message',
-        allOf(
-          contains('Pixel test failed'),
-          contains("this machine's baseline, rendered from commit "
-              '${head.substring(0, 10)}'),
+      throwsA(
+        isA<FlutterError>().having(
+          (e) => e.message,
+          'message',
+          allOf(
+            contains('Pixel test failed'),
+            contains(
+              "this machine's baseline, rendered from commit "
+              '${head.substring(0, 10)}',
+            ),
+          ),
         ),
-      )),
+      ),
     );
     final diff = File('${repo.dir}/test/failures/a_isolatedDiff.png');
     expect(diff.existsSync(), isTrue);
@@ -126,18 +144,21 @@ void main() {
     test("committed, one pixel off its commit's render fails", () async {
       await expectLater(
         comparator(flutter: drawing()).compare(onePixelOff, golden),
-        throwsA(isA<FlutterError>().having(
-          (e) => e.message,
-          'message',
-          contains("this machine's baseline, rendered from commit "
-              '${branchCommit.substring(0, 10)}'),
-        )),
+        throwsA(
+          isA<FlutterError>().having(
+            (e) => e.message,
+            'message',
+            contains(
+              "this machine's baseline, rendered from commit "
+              '${branchCommit.substring(0, 10)}',
+            ),
+          ),
+        ),
       );
     });
 
     test("committed, its commit's render passes and is reported with its "
-        "diff against this machine's render from before the branch",
-        () async {
+        "diff against this machine's render from before the branch", () async {
       final machine = comparator(flutter: drawing());
 
       expect(await machine.compare(moved, golden), isTrue);
@@ -155,56 +176,66 @@ void main() {
       expect(File(entry.diffs.first).existsSync(), isTrue);
     });
 
-    test('that renders as it did before the branch is reported with no diff',
-        () async {
-      final machine = comparator();
-
-      expect(await machine.compare(renderedHere, golden), isTrue);
-
-      final entry = machine.report.read().single;
-      expect(entry.outcome, GoldenOutcome.changed);
-      expect(entry.diffs, isEmpty);
-    });
-
-    test('uncommitted, it is compared exactly with the working tree png',
-        () async {
-      File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(onePixelOff);
-      final flutter = drawing();
-      final machine = comparator(flutter: flutter);
-
-      expect(await machine.compare(onePixelOff, golden), isTrue);
-      await expectLater(
-        machine.compare(moved, golden),
-        throwsA(isA<FlutterError>().having(
-          (e) => e.message,
-          'message',
-          contains('the png in the working tree'),
-        )),
-      );
-      expect(machine.report.read().single.outcome, GoldenOutcome.failed);
-    });
-  });
-
-  test('a baseline build that fails fails the golden, naming the command',
+    test(
+      'that renders as it did before the branch is reported with no diff',
       () async {
-    final failing = FakeFlutter(
-      renders: ['test/goldens/a.png'],
-      draw: (_, _) => renderedHere,
-      testExitCode: 1,
+        final machine = comparator();
+
+        expect(await machine.compare(renderedHere, golden), isTrue);
+
+        final entry = machine.report.read().single;
+        expect(entry.outcome, GoldenOutcome.changed);
+        expect(entry.diffs, isEmpty);
+      },
     );
 
-    await expectLater(
-      comparator(flutter: failing).compare(renderedHere, golden),
-      throwsA(isA<FlutterError>().having(
-        (e) => e.message,
-        'message',
-        allOf(
-          contains('could not build the baselines of commit'),
-          contains('test --update-goldens test/a_test.dart'),
-        ),
-      )),
+    test(
+      'uncommitted, it is compared exactly with the working tree png',
+      () async {
+        File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(onePixelOff);
+        final flutter = drawing();
+        final machine = comparator(flutter: flutter);
+
+        expect(await machine.compare(onePixelOff, golden), isTrue);
+        await expectLater(
+          machine.compare(moved, golden),
+          throwsA(
+            isA<FlutterError>().having(
+              (e) => e.message,
+              'message',
+              contains('the png in the working tree'),
+            ),
+          ),
+        );
+        expect(machine.report.read().single.outcome, GoldenOutcome.failed);
+      },
     );
   });
+
+  test(
+    'a baseline build that fails fails the golden, naming the command',
+    () async {
+      final failing = FakeFlutter(
+        renders: ['test/goldens/a.png'],
+        draw: (_, _) => renderedHere,
+        testExitCode: 1,
+      );
+
+      await expectLater(
+        comparator(flutter: failing).compare(renderedHere, golden),
+        throwsA(
+          isA<FlutterError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains('could not build the baselines of commit'),
+              contains('test --update-goldens test/a_test.dart'),
+            ),
+          ),
+        ),
+      );
+    },
+  );
 
   test('--update-goldens writes the committed png and leaves the machine '
       'baseline alone', () async {
@@ -240,11 +271,17 @@ void main() {
     final machine = comparator(packageDir: plain.path);
 
     expect(await machine.compare(committed, golden), isTrue);
-    await expectLater(machine.compare(renderedHere, golden), throwsFlutterError);
+    await expectLater(
+      machine.compare(renderedHere, golden),
+      throwsFlutterError,
+    );
     // Recorded like any other failure, so `report` lists it.
     final entry = machine.report.read().single;
     expect(entry.outcome, GoldenOutcome.failed);
     expect(entry.baseline, contains('the committed image'));
-    expect(entry.diffs, contains('${plain.path}/test/failures/a_isolatedDiff.png'));
+    expect(
+      entry.diffs,
+      contains('${plain.path}/test/failures/a_isolatedDiff.png'),
+    );
   });
 }

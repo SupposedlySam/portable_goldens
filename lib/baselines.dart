@@ -4,10 +4,15 @@
 library;
 
 export 'src/builder.dart'
-    show BaselineBuilder, CheckoutUnavailable, ProcessRunner, childEnvironmentVariable;
+    show
+        BaselineBuilder,
+        CheckoutUnavailable,
+        ProcessRunner,
+        childEnvironmentVariable;
 export 'src/git.dart' show GitRepo;
 export 'src/machine_key.dart' show MachineKey;
-export 'src/report.dart' show GoldenOutcome, GoldenReport, ReportEntry, currentRun;
+export 'src/report.dart'
+    show GoldenOutcome, GoldenReport, ReportEntry, currentRun;
 export 'src/session.dart'
     show
         BranchChange,
@@ -18,4 +23,9 @@ export 'src/session.dart'
         WorkingTreeBaseline,
         baseEnvironmentVariable;
 export 'src/store.dart'
-    show BaselineStore, BuildFailure, Built, cacheEnvironmentVariable, defaultCacheRoot;
+    show
+        BaselineStore,
+        BuildFailure,
+        Built,
+        cacheEnvironmentVariable,
+        defaultCacheRoot;

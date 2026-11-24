@@ -14,14 +14,13 @@ import 'store.dart';
 const childEnvironmentVariable = 'PORTABLE_GOLDENS_CHILD';
 
 /// `Process.run`, or a stand-in for it in tests.
-typedef ProcessRunner =
-    Future<ProcessResult> Function(
-      String executable,
-      List<String> arguments, {
-      String? workingDirectory,
-      Map<String, String>? environment,
-      bool includeParentEnvironment,
-    });
+typedef ProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  Map<String, String>? environment,
+  bool includeParentEnvironment,
+});
 
 /// A commit could not be checked out (a shallow clone, say). The comparator
 /// then compares with the committed image instead.
@@ -89,7 +88,8 @@ class BaselineBuilder {
       throw BuildFailure(
         commit: commit,
         command: '(none)',
-        message: 'refused: this process is itself building baselines '
+        message:
+            'refused: this process is itself building baselines '
             '($childEnvironmentVariable=1)',
       );
     }
@@ -152,8 +152,12 @@ class BaselineBuilder {
       });
       return Built(written..sort(), shown);
     } finally {
-      await _run('git', ['worktree', 'remove', '--force', checkout],
-          workingDirectory: repo.topLevel);
+      await _run('git', [
+        'worktree',
+        'remove',
+        '--force',
+        checkout,
+      ], workingDirectory: repo.topLevel);
       final left = Directory(checkout);
       if (left.existsSync()) left.deleteSync(recursive: true);
       await _run('git', ['worktree', 'prune'], workingDirectory: repo.topLevel);

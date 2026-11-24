@@ -97,7 +97,13 @@ class GitRepo {
   /// The paths whose working-tree content differs from [base]: committed on
   /// this branch, staged, unstaged, or new and not ignored.
   Future<Set<String>> changedSince(String base) async {
-    final tracked = await run(['diff', '--name-only', '--no-renames', base, '--']);
+    final tracked = await run([
+      'diff',
+      '--name-only',
+      '--no-renames',
+      base,
+      '--',
+    ]);
     final untracked = await run(['ls-files', '--others', '--exclude-standard']);
     return {
       for (final text in [tracked, untracked])

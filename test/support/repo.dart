@@ -105,8 +105,11 @@ class FakeFlutter {
       if (checkoutFails && arguments.contains('add')) {
         return ProcessResult(0, 128, '', 'fatal: invalid reference');
       }
-      return Process.run(executable, arguments,
-          workingDirectory: workingDirectory);
+      return Process.run(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+      );
     }
     if (arguments.first == 'pub') return ProcessResult(0, 0, '', '');
     testRuns.add((
@@ -114,11 +117,14 @@ class FakeFlutter {
       env: environment ?? const {},
       dir: workingDirectory,
     ));
-    final head = await Process.run('git', ['rev-parse', 'HEAD'],
-        workingDirectory: workingDirectory);
+    final head = await Process.run('git', [
+      'rev-parse',
+      'HEAD',
+    ], workingDirectory: workingDirectory);
     final commit = (head.stdout as String).trim();
     for (final golden in renders) {
-      final file = File('$workingDirectory/$golden')..createSync(recursive: true);
+      final file = File('$workingDirectory/$golden')
+        ..createSync(recursive: true);
       if (draw case final draw?) {
         file.writeAsBytesSync(draw(golden, commit));
       } else {

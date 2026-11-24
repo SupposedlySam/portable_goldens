@@ -24,6 +24,7 @@ Future<void> main(List<String> args) async {
       ..writeAsStringSync('rendered by $pid');
     return const Built(['test/goldens/a.png'], 'fake');
   });
-  stdout.writeln(store.baseline('c0ffee', 'root', 'test/goldens/a.png')!
-      .readAsStringSync());
+  stdout.writeln(
+    store.baseline('c0ffee', 'root', 'test/goldens/a.png')!.readAsStringSync(),
+  );
 }

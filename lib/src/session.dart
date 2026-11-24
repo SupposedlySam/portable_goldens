@@ -45,7 +45,11 @@ class WorkingTreeBaseline extends GoldenBaseline {
 class BranchChange {
   /// The branch changed the golden since [base]; [image] is what it was
   /// there, described by [was], or null when the golden is new.
-  const BranchChange({required this.base, required this.image, required this.was});
+  const BranchChange({
+    required this.base,
+    required this.image,
+    required this.was,
+  });
 
   /// The commit the branch is measured from.
   final String base;
@@ -133,9 +137,9 @@ class MachineGoldens {
     if (file == null) {
       throw BuildFailure(
         commit: commit,
-        command:
-            builtCommand(store.unitDir(commit, unit)) ?? '(not recorded)',
-        message: 'its golden tests ran on this machine and did not write '
+        command: builtCommand(store.unitDir(commit, unit)) ?? '(not recorded)',
+        message:
+            'its golden tests ran on this machine and did not write '
             '$inPackage. Is the test that draws it in a file whose source '
             'contains "$goldenTestMarker"?',
       );
@@ -167,7 +171,8 @@ class MachineGoldens {
 
     for (final golden in await goldens(pathspec)) {
       if (!context.dirty.contains(golden)) await need(golden);
-      if (context.changed.contains(golden)) await need(golden, at: context.base);
+      if (context.changed.contains(golden))
+        await need(golden, at: context.base);
     }
     return byCommit;
   }
@@ -204,7 +209,8 @@ class MachineGoldens {
     return BranchChange(
       base: base,
       image: await repo.show(commit, relative),
-      was: 'the png committed at ${_short(commit)}, before the branch, '
+      was:
+          'the png committed at ${_short(commit)}, before the branch, '
           'perhaps rendered on another machine',
     );
   }
@@ -236,7 +242,11 @@ class MachineGoldens {
     final repo = context.repo;
     if (repo == null) return const [];
     final matching = await repo.run([
-      'ls-files', '--cached', '--others', '--exclude-standard', '--',
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '--',
       ':(glob)${repo.packagePrefix}$pathspec',
     ]);
     return [
@@ -246,9 +256,8 @@ class MachineGoldens {
   }
 
   /// The commit this branch is measured from, or null outside a repository.
-  Future<String?> get base async => (await _context).repo == null
-      ? null
-      : (await _context).base;
+  Future<String?> get base async =>
+      (await _context).repo == null ? null : (await _context).base;
 
   /// The folder this machine's baselines are in, or null when they are not
   /// used.

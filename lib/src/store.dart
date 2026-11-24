@@ -113,8 +113,11 @@ class BaselineStore {
   Set<String>? _builtFiles(String commit, String unit) {
     try {
       final marker = File('${unitDir(commit, unit).path}/.complete');
-      final json = jsonDecode(marker.readAsStringSync()) as Map<String, Object?>;
-      return {for (final path in json['files'] as List<Object?>) path as String};
+      final json =
+          jsonDecode(marker.readAsStringSync()) as Map<String, Object?>;
+      return {
+        for (final path in json['files'] as List<Object?>) path as String,
+      };
     } on Object {
       return null;
     }
@@ -155,7 +158,8 @@ class BaselineStore {
     await _withLock(File('${commitDir.path}/$unit.lock'), () async {
       if (isComplete(commit, unit)) return;
       final record = failureRecord(commit, unit);
-      if (record.existsSync() && record.lastModifiedSync().isAfter(waitedFrom)) {
+      if (record.existsSync() &&
+          record.lastModifiedSync().isAfter(waitedFrom)) {
         throw BuildFailure.fromJson(
           jsonDecode(record.readAsStringSync()) as Map<String, Object?>,
         );
@@ -307,7 +311,9 @@ Future<void> _withLock(File file, Future<void> Function() body) async {
         break;
       } on FileSystemException {
         if (!told) {
-          stderr.writeln('portable_goldens: waiting for another build of ${file.path}');
+          stderr.writeln(
+            'portable_goldens: waiting for another build of ${file.path}',
+          );
           told = true;
         }
         await Future<void>.delayed(const Duration(milliseconds: 250));

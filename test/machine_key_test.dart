@@ -42,7 +42,9 @@ void main() {
   group('the engine revision', () {
     late Directory root;
 
-    setUp(() => root = Directory.systemTemp.createTempSync('portable_goldens_sdk'));
+    setUp(
+      () => root = Directory.systemTemp.createTempSync('portable_goldens_sdk'),
+    );
     tearDown(() => root.deleteSync(recursive: true));
 
     void write(String path, String content) => File('${root.path}/$path')
@@ -76,7 +78,9 @@ void main() {
     late Directory root;
     const sha = '6a19cca56475dbfba1478ee68d7bd0c2ef891da1';
 
-    setUp(() => root = Directory.systemTemp.createTempSync('portable_goldens_sdk'));
+    setUp(
+      () => root = Directory.systemTemp.createTempSync('portable_goldens_sdk'),
+    );
     tearDown(() => root.deleteSync(recursive: true));
 
     void write(String path, String content) => File('${root.path}/$path')
@@ -105,15 +109,24 @@ void main() {
       expect(MachineKey.frameworkRevisionOf(root.path), sha);
     });
 
-    test("matches git's own answer for this SDK", () async {
-      final sdk = MachineKey.flutterRoot()!;
-      final git = await Process.run('git', ['rev-parse', 'HEAD'],
-          workingDirectory: sdk);
+    test(
+      "matches git's own answer for this SDK",
+      () async {
+        final sdk = MachineKey.flutterRoot()!;
+        final git = await Process.run('git', [
+          'rev-parse',
+          'HEAD',
+        ], workingDirectory: sdk);
 
-      expect(MachineKey.frameworkRevisionOf(sdk), (git.stdout as String).trim());
-    }, skip: Directory('${MachineKey.flutterRoot()}/.git').existsSync()
-        ? false
-        : 'the SDK is not a git checkout');
+        expect(
+          MachineKey.frameworkRevisionOf(sdk),
+          (git.stdout as String).trim(),
+        );
+      },
+      skip: Directory('${MachineKey.flutterRoot()}/.git').existsSync()
+          ? false
+          : 'the SDK is not a git checkout',
+    );
   });
 
   test('the SDK is FLUTTER_ROOT, or the folder above the executable\'s '

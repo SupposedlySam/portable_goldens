@@ -94,13 +94,15 @@ class PortableGoldenComparator extends LocalFileComparator {
       final error = await generateFailureOutput(result, golden, basedir);
       final diffs = _failureFiles(result, golden, '');
       result.dispose();
-      report.record(ReportEntry(
-        golden: inPackage,
-        outcome: GoldenOutcome.failed,
-        baseline: against,
-        diffs: diffs,
-        at: DateTime.now(),
-      ));
+      report.record(
+        ReportEntry(
+          golden: inPackage,
+          outcome: GoldenOutcome.failed,
+          baseline: against,
+          diffs: diffs,
+          at: DateTime.now(),
+        ),
+      );
       throw FlutterError('$error\nCompared exactly against $against');
     }
     result.dispose();
@@ -110,8 +112,10 @@ class PortableGoldenComparator extends LocalFileComparator {
 
   Future<List<int>> _committed(Uri golden, String reason) {
     if (_told.add(reason) && !reason.contains('itself building')) {
-      stderr.writeln('portable_goldens: comparing with the committed '
-          'images, because $reason.');
+      stderr.writeln(
+        'portable_goldens: comparing with the committed '
+        'images, because $reason.',
+      );
     }
     return getGoldenBytes(golden);
   }
@@ -133,21 +137,27 @@ class PortableGoldenComparator extends LocalFileComparator {
     final diffs = <String>[];
     final before = change.image;
     if (before != null) {
-      final result = await GoldenFileComparator.compareLists(imageBytes, before);
+      final result = await GoldenFileComparator.compareLists(
+        imageBytes,
+        before,
+      );
       if (!result.passed) {
         await generateFailureOutput(result, golden, basedir, key: 'branch');
         diffs.addAll(_failureFiles(result, golden, 'branch'));
       }
       result.dispose();
     }
-    report.record(ReportEntry(
-      golden: inPackage,
-      outcome: GoldenOutcome.changed,
-      baseline: 'changed by this branch since ${_short(change.base)}; '
-          'compared with ${change.was}',
-      diffs: diffs,
-      at: DateTime.now(),
-    ));
+    report.record(
+      ReportEntry(
+        golden: inPackage,
+        outcome: GoldenOutcome.changed,
+        baseline:
+            'changed by this branch since ${_short(change.base)}; '
+            'compared with ${change.was}',
+        diffs: diffs,
+        at: DateTime.now(),
+      ),
+    );
   }
 
   String _goldenPath(Uri golden) =>
@@ -158,11 +168,14 @@ class PortableGoldenComparator extends LocalFileComparator {
     return path.startsWith('$dir/') ? path.substring(dir.length + 1) : path;
   }
 
-  List<String> _failureFiles(ComparisonResult result, Uri golden, String key) => [
+  List<String> _failureFiles(
+    ComparisonResult result,
+    Uri golden,
+    String key,
+  ) => [
     for (final name in result.diffs?.keys ?? const <String>[])
       getFailureFile(key.isEmpty ? name : '${name}_$key', golden, basedir).path,
   ];
 }
 
 String _short(String sha) => sha.length > 10 ? sha.substring(0, 10) : sha;
-

@@ -29,9 +29,11 @@ Future<void> main(List<String> args) async {
         entry,
   ];
 
-  stdout.writeln(failed.isEmpty
-      ? "No golden failed against this machine's baseline."
-      : "Failed against this machine's baseline (${failed.length}):");
+  stdout.writeln(
+    failed.isEmpty
+        ? "No golden failed against this machine's baseline."
+        : "Failed against this machine's baseline (${failed.length}):",
+  );
   for (final entry in failed) {
     stdout.writeln('  ${entry.golden}');
     for (final diff in entry.diffs) {
@@ -39,10 +41,12 @@ Future<void> main(List<String> args) async {
     }
   }
   final base = await goldens.base;
-  stdout.writeln(changed.isEmpty
-      ? 'No golden changed by this branch.'
-      : 'Changed by this branch since ${base?.substring(0, 10)} '
-          '(${changed.length}):');
+  stdout.writeln(
+    changed.isEmpty
+        ? 'No golden changed by this branch.'
+        : 'Changed by this branch since ${base?.substring(0, 10)} '
+              '(${changed.length}):',
+  );
   for (final golden in changed) {
     stdout.writeln('  $golden');
     final entry = entries[golden];

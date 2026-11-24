@@ -15,8 +15,10 @@ Future<int> prepare(
   required StringSink err,
 }) async {
   if (await goldens.fallbackReason case final reason?) {
-    out.writeln('Machine baselines are not used here, because $reason; '
-        'goldens compare with the committed images.');
+    out.writeln(
+      'Machine baselines are not used here, because $reason; '
+      'goldens compare with the committed images.',
+    );
     return 0;
   }
   out
@@ -28,8 +30,10 @@ Future<int> prepare(
   final unbuilt = <String>{};
   var failed = 0;
   for (final MapEntry(key: commit, value: paths) in missing.entries) {
-    out.writeln('Building ${commit.substring(0, 10)} '
-        '(${paths.length} golden${paths.length == 1 ? '' : 's'})...');
+    out.writeln(
+      'Building ${commit.substring(0, 10)} '
+      '(${paths.length} golden${paths.length == 1 ? '' : 's'})...',
+    );
     final started = DateTime.now();
     try {
       await goldens.build(commit);
@@ -41,23 +45,30 @@ Future<int> prepare(
       err.writeln('  $failure');
     } on CheckoutUnavailable catch (unavailable) {
       unbuilt.add(commit);
-      out.writeln('  $unavailable; its goldens compare with the committed '
-          'images');
+      out.writeln(
+        '  $unavailable; its goldens compare with the committed '
+        'images',
+      );
     }
   }
   final unwritten = [
-    for (final MapEntry(key: commit, value: paths)
-        in (await goldens.missing(pathspec)).entries)
+    for (final MapEntry(key: commit, value: paths) in (await goldens.missing(
+      pathspec,
+    )).entries)
       if (!unbuilt.contains(commit))
         for (final path in paths) (commit, path),
   ];
   for (final (commit, path) in unwritten) {
-    err.writeln('  the build of ${commit.substring(0, 10)} passed but did not '
-        'write $path');
+    err.writeln(
+      '  the build of ${commit.substring(0, 10)} passed but did not '
+      'write $path',
+    );
   }
   if (changed.isNotEmpty) {
-    out.writeln('${changed.length} changed by this branch, and `report` lists '
-        'each with its diff.');
+    out.writeln(
+      '${changed.length} changed by this branch, and `report` lists '
+      'each with its diff.',
+    );
   }
   final problems = failed + unwritten.length;
   if (problems == 0) {

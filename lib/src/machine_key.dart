@@ -97,7 +97,8 @@ class MachineKey {
   String get id {
     final hash = _fnv1a64(utf8.encode(jsonEncode(toJson())));
     // An int is signed, so each 32-bit half is written on its own.
-    String half(int value) => (value & 0xffffffff).toRadixString(16).padLeft(8, '0');
+    String half(int value) =>
+        (value & 0xffffffff).toRadixString(16).padLeft(8, '0');
     return '${half(hash >> 32)}${half(hash)}';
   }
 
@@ -125,7 +126,8 @@ class MachineKey {
     final fromEnv = env['FLUTTER_ROOT'];
     if (fromEnv != null && fromEnv.isNotEmpty) return fromEnv;
     final exe = Platform.resolvedExecutable;
-    final marker = '${Platform.pathSeparator}bin${Platform.pathSeparator}'
+    final marker =
+        '${Platform.pathSeparator}bin${Platform.pathSeparator}'
         'cache${Platform.pathSeparator}';
     final at = exe.lastIndexOf(marker);
     return at < 0 ? null : exe.substring(0, at);

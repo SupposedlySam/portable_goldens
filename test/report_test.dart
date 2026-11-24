@@ -7,8 +7,9 @@ void main() {
   late Directory package;
 
   setUp(
-    () =>
-        package = Directory.systemTemp.createTempSync('portable_goldens_report'),
+    () => package = Directory.systemTemp.createTempSync(
+      'portable_goldens_report',
+    ),
   );
   tearDown(() => package.deleteSync(recursive: true));
 
