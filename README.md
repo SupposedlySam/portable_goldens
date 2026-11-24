@@ -121,10 +121,24 @@ Reads what the last test run recorded and lists two groups:
 2. Each golden **changed by this branch**, with its diff against what it was before the branch, or
    "no diff". A golden the run did not compare says "not compared yet".
 
-It exits 1 if anything failed.
+It exits 1 if anything failed. With `--json` it writes the same two groups as one JSON document,
+for tools:
 
-Both commands take `--goldens <pathspec>`, a git pathspec relative to the package. The default is
-`**/goldens/**/*.png`. Run them from the package's root.
+```json
+{
+  "base": "<the commit the branch is measured from>",
+  "failed": [{"golden": "test/goldens/b.png", "diffs": ["<path of a diff image>"]}],
+  "changed": [
+    {"golden": "test/goldens/a.png", "compared": true, "baseline": "<what it was compared with>", "diffs": ["..."]},
+    {"golden": "test/goldens/c.png", "compared": false, "diffs": []}
+  ]
+}
+```
+
+Both commands take `--goldens <pathspec>` (or `--goldens=<pathspec>`), a git pathspec relative
+to the package. The default is `**/goldens/**/*.png`. Run them from the package's root. `--help`
+prints a command's usage. An option a command does not take exits 64, with the usage. Inside a
+baseline build either command refuses and exits 1, since it would build from within a build.
 
 ## In CI
 

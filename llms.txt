@@ -94,16 +94,17 @@ revision cannot be found; running inside a baseline build.
 
 ## Working on this package
 
-| File | Owns |
+| Folder under `lib/src/` | Owns |
 |---|---|
-| `lib/src/comparator.dart` | `PortableGoldenComparator`: the compare, failure output, report entries |
-| `lib/src/session.dart` | `MachineGoldens`: which baseline a golden uses, fallbacks, branch changes |
-| `lib/src/machine_key.dart` | `MachineKey`: what goes in the key and where each value is read |
-| `lib/src/store.dart` | `BaselineStore`: cache layout, lock, build-mark-rename, sweep |
-| `lib/src/builder.dart` | `BaselineBuilder`: worktree checkout, the child `flutter test` |
-| `lib/src/git.dart` | `GitRepo`: every git question asked |
-| `lib/src/report.dart` | `GoldenReport`: the last run's outcomes, for `report` |
-| `lib/src/prepare.dart`, `bin/` | the `prepare` and `report` commands |
+| `compare/` | `PortableGoldenComparator`: the compare, failure output, report entries |
+| `session/` | `MachineGoldens` and the sealed `GoldensSession` (fallback or active): which baseline a golden uses, branch changes |
+| `machine/` | `MachineKey` (what goes in the key) and `FlutterSdk` (where the engine and framework revisions are read) |
+| `store/` | `BaselineStore` and `CommitBaselines`: cache layout, lock, completion marker, build-mark-rename, sweep, atomic writes |
+| `build/` | `BaselineBuilder`: the throwaway worktree, which test files to run, the child `flutter test`, which pngs it wrote |
+| `git/` | `GitRepo` (every git question asked) and `PackageLocation` (absolute, repo- and package-relative paths) |
+| `process/` | `ProcessRunner`, the one seam every process launch goes through |
+| `report/` | `GoldenReport` (the last run's outcomes) and `WorkSummary` (what `report` prints) |
+| `cli/` | `GoldensCommand`, one class per command, the argument parser and `runPortableGoldens`; each `bin/<command>.dart` only calls it |
 
 Rules the code already follows. Keep them:
 
@@ -114,7 +115,13 @@ Rules the code already follows. Keep them:
   machine's image and is never taken for a render.
 - Cache writes are atomic (a temporary file or folder, then a rename), because every test file
   runs in its own process and they all open the store at once.
-- No dependencies beyond `flutter` and `flutter_test`.
+- No dependencies beyond `flutter` and `flutter_test`, which is why `cli/` parses its own
+  arguments.
+- No `!` in `lib/` or `bin/`: `tool/check_null_assertions.sh` fails on one.
+- A command never calls `exit` or touches `stdout` itself; it writes to its `CommandContext` and
+  returns an `ExitCode`, so the tests run it in process.
 
-Verify with `flutter analyze` and `flutter test` from the repository root. The tests build real
+Verify from the repository root with `dart format --set-exit-if-changed .`,
+`flutter analyze --fatal-infos`, `flutter test`, `tool/check_null_assertions.sh` and
+`tool/check_ignored_sources.sh`. The tests build real
 git repositories in temporary folders and run real `git`.

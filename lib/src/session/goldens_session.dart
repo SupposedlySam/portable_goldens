@@ -33,7 +33,8 @@ sealed class GoldensSession {
   /// The tracked goldens matching [pathspec], repo-relative.
   Future<List<String>> goldens(String pathspec);
 
-  /// The goldens matching [pathspec] this branch changed, repo-relative.
+  /// The goldens matching [pathspec] this branch changed, relative to the
+  /// package, sorted.
   Future<List<String>> changedByBranch(String pathspec);
 
   /// The commit this branch is measured from, or null.
@@ -236,6 +237,6 @@ final class ActiveSession extends GoldensSession {
     for (final path in await repo.workingFiles(
       repo.location.pathspec(pathspec),
     ))
-      if (changed.contains(path)) path,
+      if (changed.contains(path)) ?repo.location.packagePath(path),
   ]..sort();
 }

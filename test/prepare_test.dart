@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portable_goldens/baselines.dart';
-import 'package:portable_goldens/src/cli/prepare.dart';
+import 'package:portable_goldens/src/cli/command_context.dart';
+import 'package:portable_goldens/src/cli/command_runner.dart';
 
 import 'support/repo.dart';
 
@@ -23,17 +24,23 @@ void main() {
   Future<(int, String, String)> run(FakeFlutter flutter) async {
     final out = StringBuffer();
     final err = StringBuffer();
-    final code = await prepare(
-      MachineGoldens(
+    const environment = {'FLUTTER_ROOT': '/fake/flutter'};
+    final code = await runPortableGoldens(
+      'prepare',
+      const [],
+      context: CommandContext(
         packageDir: repo.dir,
-        environment: const {'FLUTTER_ROOT': '/fake/flutter'},
-        key: fakeKey(),
-        cacheRoot: cache.path,
-        runProcess: flutter.call,
+        out: out,
+        err: err,
+        environment: environment,
+        goldens: () => MachineGoldens(
+          packageDir: repo.dir,
+          environment: environment,
+          key: fakeKey(),
+          cacheRoot: cache.path,
+          runProcess: flutter.call,
+        ),
       ),
-      '**/goldens/**/*.png',
-      out: out,
-      err: err,
     );
     return (code, '$out', '$err');
   }

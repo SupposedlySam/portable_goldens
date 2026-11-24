@@ -82,7 +82,8 @@ final class MachineGoldens {
       _session.then((s) => s.goldens(pathspec));
 
   /// The goldens matching [pathspec] that this branch changed since its
-  /// merge-base with the default branch, repo-relative.
+  /// merge-base with the default branch, relative to the package and sorted:
+  /// the form the report records a golden in.
   Future<List<String>> changedByBranch(String pathspec) =>
       _session.then((s) => s.changedByBranch(pathspec));
 

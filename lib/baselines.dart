@@ -14,6 +14,7 @@ export 'src/process/process_runner.dart' show ProcessRunner;
 export 'src/report/golden_report.dart' show GoldenReport;
 export 'src/report/report_entry.dart' show GoldenOutcome, ReportEntry;
 export 'src/report/test_run.dart' show currentRun;
+export 'src/report/work_summary.dart' show ChangedGolden, WorkSummary;
 export 'src/session/branch_change.dart' show BranchChange;
 export 'src/session/golden_baseline.dart'
     show
