@@ -9,7 +9,7 @@ const defaultGoldens = '**/goldens/**/*.png';
 String goldensPathspec(List<String> args, {required String usage}) {
   if (args.isEmpty) return defaultGoldens;
   if (args.length == 2 && args.first == '--goldens') return args.last;
-  stderr.writeln('usage: dart run machine_goldens:$usage '
+  stderr.writeln('usage: dart run portable_goldens:$usage '
       '[--goldens <pathspec>]   (default: $defaultGoldens)');
   exit(64);
 }

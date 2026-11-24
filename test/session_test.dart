@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 import 'support/repo.dart';
 
@@ -11,7 +11,7 @@ void main() {
 
   setUp(() async {
     repo = await TestRepo.create();
-    cache = Directory.systemTemp.createTempSync('machine_goldens_cache');
+    cache = Directory.systemTemp.createTempSync('portable_goldens_cache');
   });
 
   tearDown(() {
@@ -292,7 +292,7 @@ void main() {
     repo.write('test/goldens/b.png', 'committed b, again');
     final head = await repo.commit('b moves');
     final shallow =
-        Directory.systemTemp.createTempSync('machine_goldens_shallow');
+        Directory.systemTemp.createTempSync('portable_goldens_shallow');
     addTearDown(() => shallow.deleteSync(recursive: true));
     await Process.run('git', [
       'clone', '--quiet', '--depth', '1', 'file://${repo.dir}', shallow.path,
@@ -321,7 +321,7 @@ void main() {
 
   test('outside a git repository it compares with the committed image',
       () async {
-    final plain = Directory.systemTemp.createTempSync('machine_goldens_plain');
+    final plain = Directory.systemTemp.createTempSync('portable_goldens_plain');
     addTearDown(() => plain.deleteSync(recursive: true));
     final flutter = FakeFlutter();
 

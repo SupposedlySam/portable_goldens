@@ -1,13 +1,13 @@
 // Before work: builds every missing baseline of this machine without running
 // the suite, so the first test run compares at once instead of building.
 //
-//   dart run machine_goldens:prepare [--goldens <pathspec>]
+//   dart run portable_goldens:prepare [--goldens <pathspec>]
 //
 // Run it from the package's root. Exits 1 when a build fails.
 import 'dart:io';
 
-import 'package:machine_goldens/baselines.dart';
-import 'package:machine_goldens/src/prepare.dart';
+import 'package:portable_goldens/baselines.dart';
+import 'package:portable_goldens/src/prepare.dart';
 
 import 'src/args.dart';
 

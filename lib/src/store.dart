@@ -5,7 +5,7 @@ import 'dart:io';
 import 'machine_key.dart';
 
 /// The environment variable that moves the cache.
-const cacheEnvironmentVariable = 'MACHINE_GOLDENS_CACHE';
+const cacheEnvironmentVariable = 'PORTABLE_GOLDENS_CACHE';
 
 /// Where baselines live when [cacheEnvironmentVariable] is not set: the
 /// user's cache folder, outside every repository.
@@ -18,13 +18,13 @@ String defaultCacheRoot({Map<String, String>? environment}) {
   final override = env[cacheEnvironmentVariable];
   if (override != null && override.isNotEmpty) return override;
   final home = env['HOME'] ?? env['USERPROFILE'] ?? '.';
-  if (Platform.isMacOS) return '$home/Library/Caches/machine_goldens';
+  if (Platform.isMacOS) return '$home/Library/Caches/portable_goldens';
   if (Platform.isWindows) {
     final local = env['LOCALAPPDATA'] ?? '$home\\AppData\\Local';
-    return '$local\\machine_goldens';
+    return '$local\\portable_goldens';
   }
   final xdg = env['XDG_CACHE_HOME'];
-  return '${xdg != null && xdg.isNotEmpty ? xdg : '$home/.cache'}/machine_goldens';
+  return '${xdg != null && xdg.isNotEmpty ? xdg : '$home/.cache'}/portable_goldens';
 }
 
 /// This machine's baselines, under `<root>/<key id>/`.
@@ -282,7 +282,7 @@ class BuildFailure implements Exception {
 
   @override
   String toString() => [
-    'machine_goldens could not build the baselines of commit $commit: $message',
+    'portable_goldens could not build the baselines of commit $commit: $message',
     'Command: $command',
     if (output.isNotEmpty) 'Output (end):\n$output',
   ].join('\n');
@@ -307,7 +307,7 @@ Future<void> _withLock(File file, Future<void> Function() body) async {
         break;
       } on FileSystemException {
         if (!told) {
-          stderr.writeln('machine_goldens: waiting for another build of ${file.path}');
+          stderr.writeln('portable_goldens: waiting for another build of ${file.path}');
           told = true;
         }
         await Future<void>.delayed(const Duration(milliseconds: 250));

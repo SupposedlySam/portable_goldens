@@ -11,7 +11,7 @@ import 'store.dart';
 /// recursion with no floor. With this set, the comparator inside the child is
 /// a plain `LocalFileComparator`, so `--update-goldens` writes the committed
 /// paths of the throwaway checkout, and nothing in the child builds.
-const childEnvironmentVariable = 'MACHINE_GOLDENS_CHILD';
+const childEnvironmentVariable = 'PORTABLE_GOLDENS_CHILD';
 
 /// `Process.run`, or a stand-in for it in tests.
 typedef ProcessRunner =

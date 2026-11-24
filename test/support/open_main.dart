@@ -6,7 +6,7 @@
 // Each waits for the shared start time, so their opens land together.
 import 'dart:io';
 
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 import 'repo.dart';
 

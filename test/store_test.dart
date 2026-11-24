@@ -3,14 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 import 'support/repo.dart';
 
 void main() {
   late Directory cache;
 
-  setUp(() => cache = Directory.systemTemp.createTempSync('machine_goldens_store'));
+  setUp(() => cache = Directory.systemTemp.createTempSync('portable_goldens_store'));
   tearDown(() => cache.deleteSync(recursive: true));
 
   Future<Built> render(Directory into, {String content = 'rendered'}) async {

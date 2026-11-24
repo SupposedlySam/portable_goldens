@@ -1,4 +1,4 @@
-# machine_goldens
+# portable_goldens
 
 Exact golden tests that pass on every machine. Each machine compares a golden against **its own
 render** of the commit that last changed it, so two machines that draw the same widget a few
@@ -29,7 +29,7 @@ The usual answers each give something up:
 | One **pinned environment** for every render | `golden_runner` (Docker) | Every golden run goes through a container, which still sometimes disagrees with CI. |
 | **Compare only on one machine** | many suites in practice | Everyone else skips, or regenerates and commits noise. |
 
-machine_goldens keeps the compare exact and the committed pngs unchanged, and moves the question
+portable_goldens keeps the compare exact and the committed pngs unchanged, and moves the question
 from "does this machine draw what that machine drew?" to "does this code draw what the code that
 made the png drew, **here**?".
 
@@ -54,23 +54,23 @@ What follows from that:
   there to fall back to the committed image.
 - Tests that use `matchesGoldenFile` with Flutter's own `LocalFileComparator`. A package that
   swaps in its own comparator during each test, as alchemist's `goldenTest` does, takes the
-  compare back from machine_goldens.
+  compare back from portable_goldens.
 
 ## Setup
 
 ```yaml
 dev_dependencies:
-  machine_goldens: ^0.1.0
+  portable_goldens: ^0.1.0
 ```
 
 ```dart
 // test/flutter_test_config.dart
 import 'dart:async';
 
-import 'package:machine_goldens/machine_goldens.dart';
+import 'package:portable_goldens/portable_goldens.dart';
 
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
-  MachineGoldenComparator.install();
+  PortableGoldenComparator.install();
   await testMain();
 }
 ```
@@ -82,9 +82,9 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
 ## Day to day
 
 ```sh
-dart run machine_goldens:prepare   # optional: build every missing baseline now
+dart run portable_goldens:prepare   # optional: build every missing baseline now
 flutter test                       # compare
-dart run machine_goldens:report    # what failed, and what this branch changed
+dart run portable_goldens:report    # what failed, and what this branch changed
 ```
 
 **Changing a widget on purpose.** Run `flutter test --update-goldens`, look at the new pngs,
@@ -137,12 +137,12 @@ CI is one more machine. Give it what a laptop has:
     fetch-depth: 0               # full history: a shallow clone falls back to the committed images
 - uses: actions/cache@v4
   with:
-    path: ~/.cache/machine_goldens
+    path: ~/.cache/portable_goldens
     key: machine-goldens-${{ runner.os }}-${{ hashFiles('**/goldens/**/*.png') }}
     restore-keys: machine-goldens-${{ runner.os }}-
-- run: dart run machine_goldens:prepare
+- run: dart run portable_goldens:prepare
 - run: flutter test
-- run: dart run machine_goldens:report
+- run: dart run portable_goldens:report
 ```
 
 Without the cache, every run renders every baseline it needs: one `flutter test` of the golden
@@ -182,7 +182,7 @@ information for the review, never a verdict.
 
 The default branch is the newest merge-base among `origin/HEAD`, `origin/main`, `origin/master`,
 `main` and `master`, so a stale `origin/main` beside a fresh local `main` does not stretch the
-branch back past main. Set `MACHINE_GOLDENS_BASE` to a ref to choose another. With none of them,
+branch back past main. Set `PORTABLE_GOLDENS_BASE` to a ref to choose another. With none of them,
 only uncommitted changes count.
 
 ### Fallbacks
@@ -239,10 +239,10 @@ and clone shares it.
 
 | OS | Default |
 |---|---|
-| macOS | `~/Library/Caches/machine_goldens` |
-| Linux | `$XDG_CACHE_HOME/machine_goldens`, or `~/.cache/machine_goldens` |
+| macOS | `~/Library/Caches/portable_goldens` |
+| Linux | `$XDG_CACHE_HOME/portable_goldens`, or `~/.cache/portable_goldens` |
 
-Set `MACHINE_GOLDENS_CACHE` to put it somewhere else. The layout:
+Set `PORTABLE_GOLDENS_CACHE` to put it somewhere else. The layout:
 
 ```text
 <cache>/<key id>/manifest.json            the key's readable values
@@ -271,7 +271,7 @@ The first golden that needs a commit's baselines builds all of them at once:
    for renders. A golden the run did not write is a failure.
 4. Remove the worktree.
 
-The child run has `MACHINE_GOLDENS_CHILD=1` set and `FLUTTER_TEST` unset, so it compares with the
+The child run has `PORTABLE_GOLDENS_CHILD=1` set and `FLUTTER_TEST` unset, so it compares with the
 committed image and never builds in turn.
 
 `flutter test` runs test files in parallel processes, and other worktrees may build the same
@@ -310,7 +310,7 @@ Once the png is committed, its new commit gets a baseline of its own the next ti
 
 ### The report's records
 
-Each test run records its outcomes under `.dart_tool/machine_goldens/report/` in the package,
+Each test run records its outcomes under `.dart_tool/portable_goldens/report/` in the package,
 which is where `report` reads them. The first write of a test process deletes the entries an
 earlier run left, so a golden fixed or deleted since is not listed. A run is told apart by the
 `flutter test` process all its test files share, its pid and start time, asked of `ps`.
@@ -319,15 +319,15 @@ earlier run left, so a golden fixed or deleted since is not listed. A run is tol
 
 | Variable | Meaning |
 |---|---|
-| `MACHINE_GOLDENS_CACHE` | Where the baselines live. |
-| `MACHINE_GOLDENS_BASE` | The ref a branch's changes are measured from (its merge-base with HEAD). |
-| `MACHINE_GOLDENS_CHILD` | Set to `1` inside a baseline build. Set by the package, not by you. |
+| `PORTABLE_GOLDENS_CACHE` | Where the baselines live. |
+| `PORTABLE_GOLDENS_BASE` | The ref a branch's changes are measured from (its merge-base with HEAD). |
+| `PORTABLE_GOLDENS_CHILD` | Set to `1` inside a baseline build. Set by the package, not by you. |
 
 ## Libraries
 
-- `package:machine_goldens/machine_goldens.dart`: `MachineGoldenComparator`, for
+- `package:portable_goldens/portable_goldens.dart`: `PortableGoldenComparator`, for
   `flutter_test_config.dart`. Exports everything below too.
-- `package:machine_goldens/baselines.dart`: the machinery in plain Dart, without `flutter_test`,
+- `package:portable_goldens/baselines.dart`: the machinery in plain Dart, without `flutter_test`,
   for tools built on it: `MachineKey`, `BaselineStore`, `BaselineBuilder`, `MachineGoldens` (which
   baseline a golden uses, what is missing, what the branch changed) and `GoldenReport`.
 
@@ -358,7 +358,7 @@ earlier run left, so a golden fixed or deleted since is not listed. A run is tol
 
 The comparator follows [alchemist](https://pub.dev/packages/alchemist):
 
-- `MachineGoldenComparator.install` wraps the comparator Flutter installed by resolving against
+- `PortableGoldenComparator.install` wraps the comparator Flutter installed by resolving against
   its `basedir`, as `AlchemistFileComparator.fromExisting` does.
 - It extends `LocalFileComparator` so failures keep the standard `failures/` output
   (`generateFailureOutput`).

@@ -66,7 +66,7 @@ class ReportEntry {
 /// The outcomes of the last test run, per checkout: every golden that failed
 /// or was changed.
 ///
-/// In the package's `.dart_tool/machine_goldens/report/`: per checkout, since
+/// In the package's `.dart_tool/portable_goldens/report/`: per checkout, since
 /// each worktree's run says something about its own branch, and never
 /// committed, since `.dart_tool/` is the tool's own.
 ///
@@ -77,7 +77,7 @@ class GoldenReport {
   /// The report of the package at [packageDir], written by the test run
   /// [run] names; by default, [currentRun].
   GoldenReport(String packageDir, {String? Function()? run})
-    : dir = Directory('$packageDir/.dart_tool/machine_goldens/report'),
+    : dir = Directory('$packageDir/.dart_tool/portable_goldens/report'),
       _run = run ?? currentRun;
 
   /// Where the entries are.

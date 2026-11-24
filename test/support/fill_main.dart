@@ -8,7 +8,7 @@
 // process has said it is waiting, so the two have demonstrably contended.
 import 'dart:io';
 
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 import 'repo.dart';
 

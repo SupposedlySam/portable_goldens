@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 import 'support/repo.dart';
 
@@ -11,7 +11,7 @@ void main() {
 
   setUp(() async {
     repo = await TestRepo.create();
-    cache = Directory.systemTemp.createTempSync('machine_goldens_cache');
+    cache = Directory.systemTemp.createTempSync('portable_goldens_cache');
   });
 
   tearDown(() {

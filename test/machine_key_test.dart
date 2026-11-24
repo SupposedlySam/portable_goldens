@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 import 'support/repo.dart';
 
@@ -42,7 +42,7 @@ void main() {
   group('the engine revision', () {
     late Directory root;
 
-    setUp(() => root = Directory.systemTemp.createTempSync('machine_goldens_sdk'));
+    setUp(() => root = Directory.systemTemp.createTempSync('portable_goldens_sdk'));
     tearDown(() => root.deleteSync(recursive: true));
 
     void write(String path, String content) => File('${root.path}/$path')
@@ -76,7 +76,7 @@ void main() {
     late Directory root;
     const sha = '6a19cca56475dbfba1478ee68d7bd0c2ef891da1';
 
-    setUp(() => root = Directory.systemTemp.createTempSync('machine_goldens_sdk'));
+    setUp(() => root = Directory.systemTemp.createTempSync('portable_goldens_sdk'));
     tearDown(() => root.deleteSync(recursive: true));
 
     void write(String path, String content) => File('${root.path}/$path')

@@ -1,4 +1,4 @@
-# machine_goldens
+# portable_goldens
 
 > A Flutter golden-file comparator that makes exact golden tests pass on every machine. Each
 > golden is compared, pixel for pixel, against THIS machine's render of the commit that last
@@ -24,16 +24,16 @@ It is NOT the right tool when:
 
 ## Adding it to a project
 
-1. `dev_dependencies: machine_goldens: ^0.1.0`
+1. `dev_dependencies: portable_goldens: ^0.1.0`
 2. Create `test/flutter_test_config.dart`:
 
    ```dart
    import 'dart:async';
 
-   import 'package:machine_goldens/machine_goldens.dart';
+   import 'package:portable_goldens/portable_goldens.dart';
 
    Future<void> testExecutable(FutureOr<void> Function() testMain) async {
-     MachineGoldenComparator.install();
+     PortableGoldenComparator.install();
      await testMain();
    }
    ```
@@ -41,16 +41,16 @@ It is NOT the right tool when:
    If the file already exists, add the `install()` call before `await testMain()`.
 3. Leave the tests alone: they keep calling `matchesGoldenFile`.
 4. In CI, check out with full history (`fetch-depth: 0` on GitHub Actions) and cache
-   `~/.cache/machine_goldens` (Linux) between runs. README.md, "In CI", has a workflow.
+   `~/.cache/portable_goldens` (Linux) between runs. README.md, "In CI", has a workflow.
 
 ## Running goldens
 
 Run these from the package root:
 
 ```sh
-dart run machine_goldens:prepare   # build missing baselines now; exit 1 if a build failed
+dart run portable_goldens:prepare   # build missing baselines now; exit 1 if a build failed
 flutter test                       # compare
-dart run machine_goldens:report    # failed goldens and goldens this branch changed; exit 1 on failure
+dart run portable_goldens:report    # failed goldens and goldens this branch changed; exit 1 on failure
 ```
 
 To change a golden on purpose: `flutter test --update-goldens`, look at the png, commit it. An
@@ -67,7 +67,7 @@ Every failure message ends with `Compared exactly against <what>`:
 | `the png in the working tree, which differs from HEAD` | The uncommitted png does not match what the code draws now. | Re-render, or revert the png. |
 | `the committed image, because <reason>` | Machine baselines were not used (see the reasons below), so this is a plain cross-machine compare and may be machine noise. | Fix the reason if you can (unshallow the clone, say). |
 
-`machine_goldens could not build the baselines of commit <sha>` means the old commit's
+`portable_goldens could not build the baselines of commit <sha>` means the old commit's
 `flutter pub get` or golden tests failed with today's SDK. The message carries the command, ready
 to paste into a shell, and the end of its output. The usual fix: re-render that golden on the
 current branch and commit it, which moves its baseline to a commit that builds.
@@ -85,18 +85,18 @@ revision cannot be found; running inside a baseline build.
   rebuilt, so an SDK upgrade does not fail goldens. A pixel change from the SDK itself is not
   reported as a failure: the baseline and the test render with the same SDK.
 - Nothing checks that a committed png matches its own commit's code. A stale png passes.
-- The cache lives outside the repository (macOS `~/Library/Caches/machine_goldens`, Linux
-  `$XDG_CACHE_HOME/machine_goldens` or `~/.cache/machine_goldens`) and is shared by every
-  worktree and clone. Override it with `MACHINE_GOLDENS_CACHE`.
+- The cache lives outside the repository (macOS `~/Library/Caches/portable_goldens`, Linux
+  `$XDG_CACHE_HOME/portable_goldens` or `~/.cache/portable_goldens`) and is shared by every
+  worktree and clone. Override it with `PORTABLE_GOLDENS_CACHE`.
 - "Changed by this branch" is measured from the merge-base with the default branch. Override the
-  ref with `MACHINE_GOLDENS_BASE`.
-- `MACHINE_GOLDENS_CHILD=1` marks a baseline build. Never set it yourself.
+  ref with `PORTABLE_GOLDENS_BASE`.
+- `PORTABLE_GOLDENS_CHILD=1` marks a baseline build. Never set it yourself.
 
 ## Working on this package
 
 | File | Owns |
 |---|---|
-| `lib/src/comparator.dart` | `MachineGoldenComparator`: the compare, failure output, report entries |
+| `lib/src/comparator.dart` | `PortableGoldenComparator`: the compare, failure output, report entries |
 | `lib/src/session.dart` | `MachineGoldens`: which baseline a golden uses, fallbacks, branch changes |
 | `lib/src/machine_key.dart` | `MachineKey`: what goes in the key and where each value is read |
 | `lib/src/store.dart` | `BaselineStore`: cache layout, lock, build-mark-rename, sweep |

@@ -1,13 +1,13 @@
 // After work: lists the goldens that failed against this machine's baseline
 // and the ones this branch changed, each with its diff image.
 //
-//   dart run machine_goldens:report [--goldens <pathspec>]
+//   dart run portable_goldens:report [--goldens <pathspec>]
 //
 // Reads what the last test run recorded; run the tests first. Exits 1 when a
 // golden failed.
 import 'dart:io';
 
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 import 'src/args.dart';
 

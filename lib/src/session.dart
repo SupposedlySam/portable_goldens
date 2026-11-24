@@ -7,7 +7,7 @@ import 'store.dart';
 
 /// The environment variable that names the ref a branch is measured from, in
 /// place of the remote's default branch.
-const baseEnvironmentVariable = 'MACHINE_GOLDENS_BASE';
+const baseEnvironmentVariable = 'PORTABLE_GOLDENS_BASE';
 
 /// What one golden is compared against.
 sealed class GoldenBaseline {

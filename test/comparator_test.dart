@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:machine_goldens/machine_goldens.dart';
+import 'package:portable_goldens/portable_goldens.dart';
 
 import 'support/repo.dart';
 
@@ -39,7 +39,7 @@ void main() {
     repo = await TestRepo.create();
     File('${repo.dir}/test/goldens/a.png').writeAsBytesSync(committed);
     await repo.commit('a is drawn');
-    cache = Directory.systemTemp.createTempSync('machine_goldens_cache');
+    cache = Directory.systemTemp.createTempSync('portable_goldens_cache');
   });
 
   tearDown(() {
@@ -47,14 +47,14 @@ void main() {
     cache.deleteSync(recursive: true);
   });
 
-  MachineGoldenComparator comparator({
+  PortableGoldenComparator comparator({
     FakeFlutter? flutter,
     String? packageDir,
   }) {
     final dir = packageDir ?? repo.dir;
     final fake = flutter ??
         FakeFlutter(renders: ['test/goldens/a.png'], draw: (_, _) => renderedHere);
-    return MachineGoldenComparator(
+    return PortableGoldenComparator(
       Uri.file('$dir/test/a_test.dart'),
       goldens: MachineGoldens(
         packageDir: dir,
@@ -232,7 +232,7 @@ void main() {
 
   test('outside a git repository it is a plain comparator against the '
       'committed image', () async {
-    final plain = Directory.systemTemp.createTempSync('machine_goldens_plain');
+    final plain = Directory.systemTemp.createTempSync('portable_goldens_plain');
     addTearDown(() => plain.deleteSync(recursive: true));
     File('${plain.path}/test/goldens/a.png')
       ..createSync(recursive: true)

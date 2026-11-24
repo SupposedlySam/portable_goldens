@@ -2,9 +2,9 @@
 // below test/ then compares its goldens against this machine's own baseline.
 import 'dart:async';
 
-import 'package:machine_goldens/machine_goldens.dart';
+import 'package:portable_goldens/portable_goldens.dart';
 
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
-  MachineGoldenComparator.install();
+  PortableGoldenComparator.install();
   await testMain();
 }

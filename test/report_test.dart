@@ -1,14 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 void main() {
   late Directory package;
 
   setUp(
     () =>
-        package = Directory.systemTemp.createTempSync('machine_goldens_report'),
+        package = Directory.systemTemp.createTempSync('portable_goldens_report'),
   );
   tearDown(() => package.deleteSync(recursive: true));
 

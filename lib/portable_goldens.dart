@@ -5,14 +5,14 @@
 /// // test/flutter_test_config.dart
 /// import 'dart:async';
 ///
-/// import 'package:machine_goldens/machine_goldens.dart';
+/// import 'package:portable_goldens/portable_goldens.dart';
 ///
 /// Future<void> testExecutable(FutureOr<void> Function() testMain) async {
-///   MachineGoldenComparator.install();
+///   PortableGoldenComparator.install();
 ///   await testMain();
 /// }
 /// ```
 library;
 
 export 'baselines.dart';
-export 'src/comparator.dart' show MachineGoldenComparator;
+export 'src/comparator.dart' show PortableGoldenComparator;

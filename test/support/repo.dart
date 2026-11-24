@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:machine_goldens/baselines.dart';
+import 'package:portable_goldens/baselines.dart';
 
 /// The key the tests' machine has; [osVersion] fakes an OS update.
 MachineKey fakeKey({String osVersion = 'Version 27.2.1 (Build 26B131)'}) =>
@@ -20,7 +20,7 @@ class TestRepo {
 
   /// A repository on `main` with one commit.
   static Future<TestRepo> create() async {
-    final dir = Directory.systemTemp.createTempSync('machine_goldens_repo');
+    final dir = Directory.systemTemp.createTempSync('portable_goldens_repo');
     final repo = TestRepo._(dir.resolveSymbolicLinksSync());
     await repo.git(['init', '--quiet', '--initial-branch=main']);
     await repo.git(['config', 'user.email', 'test@example.com']);

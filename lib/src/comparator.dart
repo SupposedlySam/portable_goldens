@@ -14,7 +14,7 @@ import 'store.dart';
 ///
 /// ```dart
 /// Future<void> testExecutable(FutureOr<void> Function() testMain) async {
-///   MachineGoldenComparator.install();
+///   PortableGoldenComparator.install();
 ///   await testMain();
 /// }
 /// ```
@@ -22,10 +22,10 @@ import 'store.dart';
 /// The pixel comparison is `GoldenFileComparator.compareLists`, which passes
 /// only when every pixel is equal: there is no tolerance. `--update-goldens`
 /// writes the committed pngs, as `LocalFileComparator` does.
-class MachineGoldenComparator extends LocalFileComparator {
+class PortableGoldenComparator extends LocalFileComparator {
   /// A comparator for the test file at [testFile], resolving baselines with
   /// [goldens] and recording outcomes in [report].
-  MachineGoldenComparator(
+  PortableGoldenComparator(
     super.testFile, {
     required this.goldens,
     required this.report,
@@ -42,8 +42,8 @@ class MachineGoldenComparator extends LocalFileComparator {
     if (current is! LocalFileComparator) return;
     final dir = packageDir ?? Directory.current.path;
     final goldens = _shared[dir] ??= MachineGoldens(packageDir: dir);
-    goldenFileComparator = MachineGoldenComparator(
-      current.basedir.resolve('machine_goldens.dart'),
+    goldenFileComparator = PortableGoldenComparator(
+      current.basedir.resolve('portable_goldens.dart'),
       goldens: goldens,
       report: GoldenReport(dir),
     );
@@ -110,7 +110,7 @@ class MachineGoldenComparator extends LocalFileComparator {
 
   Future<List<int>> _committed(Uri golden, String reason) {
     if (_told.add(reason) && !reason.contains('itself building')) {
-      stderr.writeln('machine_goldens: comparing with the committed '
+      stderr.writeln('portable_goldens: comparing with the committed '
           'images, because $reason.');
     }
     return getGoldenBytes(golden);
