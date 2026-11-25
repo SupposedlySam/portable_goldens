@@ -52,7 +52,7 @@ class TestRepo {
       'git',
       args,
       workingDirectory: dir,
-      environment: localSubmodules,
+      environment: testGitEnvironment,
     );
     if (result.exitCode != 0) {
       throw StateError('git ${args.join(' ')}: ${result.stderr}');
@@ -132,9 +132,7 @@ class FakeFlutter {
         executable,
         arguments,
         workingDirectory: workingDirectory,
-        // git refuses a submodule cloned from a local path unless told to
-        // (CVE-2022-39253); the tests' submodules are local folders.
-        environment: localSubmodules,
+        environment: testGitEnvironment,
         stdoutEncoding: stdoutEncoding,
       );
     }
@@ -162,7 +160,7 @@ class FakeFlutter {
       env: environment ?? const {},
       dir: workingDirectory,
     ));
-    final head = await Process.run('git', [
+    final head = await testGit('git', [
       'rev-parse',
       'HEAD',
     ], workingDirectory: workingDirectory);
@@ -180,9 +178,40 @@ class FakeFlutter {
   }
 }
 
-/// The environment in which git clones a submodule from a local folder.
-const localSubmodules = {
+/// The environment the tests run git in.
+///
+/// The machine's own git configuration is left out, system and global alike,
+/// so a test sees only what it configures. GitHub's Ubuntu runners install
+/// Git LFS system-wide, and its `filter.lfs.process` outranks a test's own
+/// `filter.lfs.smudge`: the tests that stand in for LFS then ran the real one
+/// against a made-up pointer, and failed there only (CI's first run,
+/// 2026-11-25). `/dev/null` is git's documented empty file, which Git for
+/// Windows maps to `NUL`.
+///
+/// git also refuses a submodule cloned from a local path unless told to
+/// (CVE-2022-39253); the tests' submodules are local folders.
+const testGitEnvironment = {
+  'GIT_CONFIG_NOSYSTEM': '1',
+  'GIT_CONFIG_GLOBAL': '/dev/null',
   'GIT_CONFIG_COUNT': '1',
   'GIT_CONFIG_KEY_0': 'protocol.file.allow',
   'GIT_CONFIG_VALUE_0': 'always',
 };
+
+/// A [ProcessRunner] that is `Process.run` with [testGitEnvironment] added,
+/// for code under test that runs git itself.
+Future<ProcessResult> testGit(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  Map<String, String>? environment,
+  bool includeParentEnvironment = true,
+  Encoding? stdoutEncoding = systemEncoding,
+}) => Process.run(
+  executable,
+  arguments,
+  workingDirectory: workingDirectory,
+  environment: {...?environment, ...testGitEnvironment},
+  includeParentEnvironment: includeParentEnvironment,
+  stdoutEncoding: stdoutEncoding,
+);

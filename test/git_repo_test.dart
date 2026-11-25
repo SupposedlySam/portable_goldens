@@ -33,7 +33,7 @@ void main() {
 
   setUp(() async {
     repo = await TestRepo.create();
-    git = (await GitRepo.open(repo.dir))!;
+    git = (await GitRepo.open(repo.dir, runProcess: testGit))!;
     outside = Directory.systemTemp.createTempSync('portable_goldens_lfs');
   });
 

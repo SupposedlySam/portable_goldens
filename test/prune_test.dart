@@ -322,7 +322,7 @@ void main() {
           out: out,
           err: err,
           environment: {
-            ...localSubmodules,
+            ...testGitEnvironment,
             cacheEnvironmentVariable: cache.path,
           },
           goldens: () => fail('prune opens no session'),
