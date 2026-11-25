@@ -132,7 +132,7 @@ repository or the package; no commit has it; its commit cannot be checked out.
 | `machine/` | `MachineKey` (what goes in the key) and `FlutterSdk` (where the engine and framework revisions are read) |
 | `store/` | `BaselineStore` and `CommitBaselines`: cache layout, lock, completion marker, build-mark-rename, sweep, atomic writes |
 | `build/` | `BaselineBuilder`: the throwaway worktree and its submodules, `PathOverrides`, which test files to run, the child `flutter test`, which pngs it wrote |
-| `git/` | `GitRepo` (every git question asked), `PackageLocation` (absolute, repo- and package-relative paths) and `CommitReachability` (is a commit still on a branch, tag or checkout) |
+| `git/` | `GitRepo` (every git question asked), `PackageLocation` (absolute, repo- and package-relative paths), `PathStyle` (every comparison of a path with a folder, `/` and `\`) and `CommitReachability` (is a commit still on a branch, tag or checkout) |
 | `prune/` | `CacheInventory` (what the cache holds), `PrunePolicy` (what goes, and why) and `CachePruner` (removes it, under each unit's lock) |
 | `process/` | `ProcessRunner`, the one seam every process launch goes through |
 | `report/` | `GoldenReport` (the last run's outcomes) and `WorkSummary` (what `report` prints) |
