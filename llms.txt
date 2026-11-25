@@ -19,8 +19,7 @@ It is NOT the right tool when:
 
 - the repository has no git history available (a shallow CI clone falls back to plain compares);
 - the tests use a package that installs its own comparator inside each test, such as alchemist's
-  `goldenTest`; it replaces this comparator for the test;
-- the tests run on Windows (not supported yet: written for, never run there).
+  `goldenTest`; it replaces this comparator for the test.
 
 ## Adding it to a project
 
@@ -108,7 +107,8 @@ repository or the package; no commit has it; its commit cannot be checked out.
 - The tests never check that a committed png matches its own commit's code, so a stale png
   passes them. Only `verify` checks it, on the machine that rendered the png.
 - The cache lives outside the repository (macOS `~/Library/Caches/portable_goldens`, Linux
-  `$XDG_CACHE_HOME/portable_goldens` or `~/.cache/portable_goldens`) and is shared by every
+  `$XDG_CACHE_HOME/portable_goldens` or `~/.cache/portable_goldens`, Windows
+  `%LOCALAPPDATA%\portable_goldens`) and is shared by every
   worktree and clone. Override it with `PORTABLE_GOLDENS_CACHE`.
 - The cache is shared by every repository, so `prune` removes a commit's baselines for being
   unreachable only when the repository it runs in has the commit; any other commit goes by age
@@ -169,4 +169,4 @@ Verify from the repository root with `dart format --set-exit-if-changed .`,
 `tool/check_ignored_sources.sh`. The tests build real git repositories in temporary folders and
 run real `git`. `tool/consumer_workflow.sh` runs the README's commands in a new consumer
 repository, and requires a changed widget to fail; `.github/workflows/ci.yaml` runs all of these
-on Linux and macOS.
+on Linux, macOS and Windows.

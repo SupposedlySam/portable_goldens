@@ -54,8 +54,8 @@ What follows from that:
   [Fallbacks](#fallbacks)). Goldens in Git LFS need `git lfs`, and git 2.42 or later to read
   each commit's png through that commit's own `.gitattributes`; an older git uses the working
   tree's.
-- macOS or Linux. Windows is not supported yet: the code handles its paths, hooks and process
-  table, but it has never been run there.
+- macOS, Linux or Windows. On Windows a setup step is batch syntax (see
+  [Generated code: setup steps](#generated-code-setup-steps)).
 - Tests that use `matchesGoldenFile` with Flutter's own `LocalFileComparator`. A package that
   swaps in its own comparator during each test, as alchemist's `goldenTest` does, takes the
   compare back from portable_goldens.
@@ -300,7 +300,7 @@ CI is one more machine. Give it what a laptop has:
     fetch-depth: 0               # full history: a shallow clone falls back to the committed images
 - uses: actions/cache@v4
   with:
-    path: ~/.cache/portable_goldens
+    path: ~/.cache/portable_goldens  # Linux's; on another OS, the table in "Where baselines live"
     key: portable-goldens-${{ runner.os }}-${{ hashFiles('**/goldens/**/*.png') }}
     restore-keys: portable-goldens-${{ runner.os }}-
 - run: dart run portable_goldens:prepare
@@ -408,6 +408,7 @@ and clone shares it.
 |---|---|
 | macOS | `~/Library/Caches/portable_goldens` |
 | Linux | `$XDG_CACHE_HOME/portable_goldens`, or `~/.cache/portable_goldens` |
+| Windows | `%LOCALAPPDATA%\portable_goldens` |
 
 Set `PORTABLE_GOLDENS_CACHE` to put it somewhere else. The layout:
 
