@@ -326,12 +326,22 @@ The first golden that needs a commit's baselines builds all of them at once:
 1. Run `git worktree prune`, then `git worktree add --detach <checkout> <commit>`, with the
    repository's hooks off. The checkout is `.<unit>.tmp-<pid>-<time>-checkout`, beside the build's
    temporary folder in the cache.
-2. Run `flutter pub get`, then `flutter test --update-goldens <files>` in the package, with the
+2. Give the checkout what a worktree leaves out:
+   - **Path dependencies outside the repository.** A `path: ../design_system` is relative to the
+     package, so from the checkout it points at nothing. Each package your own
+     `.dart_tool/package_config.json` resolves outside the repository is written into a
+     `pubspec_overrides.yaml` in the checkout, by absolute path. It goes beside the resolution:
+     the package's folder, or a pub workspace's root. A commit that has its own
+     `pubspec_overrides.yaml` there keeps it, and the build's command says so.
+   - **Submodules.** When the commit has a `.gitmodules`, run
+     `git submodule update --init --recursive` in the checkout. Each submodule is cloned from its
+     URL; a failure is a build failure naming that step.
+3. Run `flutter pub get`, then `flutter test --update-goldens <files>` in the package, with the
    same SDK as the test. The files are the commit's own test files whose source contains
    `matchesGoldenFile`, or all of `test/` when none does.
-3. Keep every png the run wrote, judged by mtime. The images checked out from git are never taken
+4. Keep every png the run wrote, judged by mtime. The images checked out from git are never taken
    for renders. A golden the run did not write is a failure.
-4. Remove the worktree.
+5. Remove the worktree.
 
 The child run has `PORTABLE_GOLDENS_CHILD=1` set and `FLUTTER_TEST` unset, so it compares with the
 committed image and never builds in turn.
@@ -416,6 +426,11 @@ earlier run left, so a golden fixed or deleted since is not listed. A run is tol
   can fail where a full clone passes.
 - **A dependency change is caught only when the lock is committed.** Without a `pubspec.lock` at
   the commit, its baseline resolves today's dependencies, the same as the test.
+- **A dependency outside the repository is today's, not the commit's.** The checkout gets the
+  folder your own resolution points at now, so a change there since the commit is drawn into that
+  commit's baseline. A dependency inside the repository is the commit's own.
+- **A submodule is cloned again for every build** from its URL, so a build needs that URL to be
+  reachable, and costs the clone.
 - **The cache grows.** Nothing prunes old key folders or commits yet.
 
 ## Credit
