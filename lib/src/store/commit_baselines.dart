@@ -85,28 +85,34 @@ final class CommitBaselines {
   /// when nothing else is left in it. Returns false, removing nothing, when
   /// a build holds the lock.
   ///
-  /// The lock file goes too, while held: a build that was already waiting
-  /// on it then holds a lock nobody else can see, so a third may build
-  /// beside it. That costs a duplicate build, never a wrong baseline, since
-  /// each builds into its own temporary folder and renames it into place
-  /// ([fill]). Throws [FileSystemException] when something cannot be
-  /// removed.
+  /// The lock file goes last, once it has been given back. Windows cannot
+  /// delete a file that is open, so deleting it while held failed there
+  /// with "being used by another process" and `prune` removed nothing (CI,
+  /// 2026-11-25). When the delete fails because another build has opened
+  /// the lock since, the file stays for that build, and the next `prune`
+  /// takes it. On POSIX the delete can still remove a lock that a build has
+  /// just taken. That build then holds a lock nobody else can see, so
+  /// another may build beside it. That costs a duplicate build, never a
+  /// wrong baseline, since each builds into its own temporary folder and
+  /// renames it into place ([fill]). Throws [FileSystemException] when
+  /// anything but the lock file cannot be removed.
   Future<bool> remove() async {
     if (!commitDir.existsSync()) return true;
     final removed = await ExclusiveLock(_lockFile).tryHold(() async {
       for (final entity in entries) {
         if (entity.path != _lockFile.path) entity.deleteSync(recursive: true);
       }
-      _lockFile.deleteSync();
     });
-    if (removed) {
+    if (!removed) return false;
+    for (final emptied in [_lockFile, commitDir]) {
       try {
-        commitDir.deleteSync();
+        emptied.deleteSync();
       } on FileSystemException {
-        // Another unit's baselines are in it still.
+        // The lock: another build opened it. The folder: another unit's
+        // baselines, or that lock, are in it still.
       }
     }
-    return removed;
+    return true;
   }
 
   /// The marker of the finished build, or null when there is none.
