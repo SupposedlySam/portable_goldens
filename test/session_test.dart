@@ -323,6 +323,116 @@ void main() {
     );
   });
 
+  group('a checkout gets what a worktree leaves out', () {
+    test(
+      'its submodules, checked out before pub get, and named in the command',
+      () async {
+        final library = await TestRepo.create();
+        addTearDown(library.delete);
+        library.write('lib/shared.dart', '// from the submodule\n');
+        await library.commit('shared code');
+        await repo.git(['submodule', 'add', '--quiet', library.dir, 'vendor']);
+        repo.write('test/goldens/a.png', 'drawn with the submodule');
+        final head = await repo.commit('a submodule');
+        final seen = <String>[];
+        final flutter = FakeFlutter(
+          onFlutter: (arguments, folder) {
+            if (arguments.first != 'pub') return;
+            final shared = File('${folder}vendor/lib/shared.dart');
+            seen.add(shared.existsSync() ? shared.readAsStringSync() : '');
+          },
+        );
+
+        final baseline = await session(flutter)
+            .baselineFor('test/goldens/a.png');
+
+        expect(seen, ['// from the submodule\n']);
+        expect(baseline, isA<MachineBaseline>());
+        // A worktree holding a checked-out submodule is still removed.
+        expect(Directory(flutter.testRuns.single.dir!).existsSync(), isFalse);
+        expect(
+          await repo.git(['worktree', 'list']),
+          isNot(contains('checkout')),
+        );
+        final command = BaselineStore.open(
+          cache.path,
+          fakeKey(),
+        ).at(head, 'root').command;
+        expect(
+          command,
+          contains(
+            '<dir> $head && git -C <dir> submodule update --init --recursive '
+            '&& cd <dir>/ && ',
+          ),
+        );
+      },
+    );
+
+    test('a submodule that cannot be fetched is a loud failure naming the '
+        'step, and runs no flutter', () async {
+      final library = await TestRepo.create();
+      await repo.git(['submodule', 'add', '--quiet', library.dir, 'vendor']);
+      repo.write('test/goldens/a.png', 'drawn with the submodule');
+      final head = await repo.commit('a submodule');
+      library.delete();
+      final flutter = FakeFlutter();
+
+      await expectLater(
+        session(flutter).baselineFor('test/goldens/a.png'),
+        throwsA(
+          isA<BuildFailure>()
+              .having((f) => f.commit, 'commit', head)
+              .having(
+                (f) => f.message,
+                'message',
+                startsWith(
+                  "`git submodule update` in the commit's checkout "
+                  'exited ',
+                ),
+              )
+              .having((f) => f.command, 'command', contains('submodule update'))
+              .having((f) => f.output, 'output', isNotEmpty),
+        ),
+      );
+      expect(flutter.testRuns, isEmpty);
+    });
+
+    test('overrides for its path dependencies outside the repository, as this '
+        'machine resolves them, written before pub get', () async {
+      // As pub writes it for `path: ../design`; .dart_tool is not committed.
+      repo
+        ..write('.gitignore', '.dart_tool/\n')
+        ..write(
+          '.dart_tool/package_config.json',
+          '{"configVersion": 2, "packages": [ '
+              '{"name": "fixture", "rootUri": "../"}, '
+              '{"name": "design", "rootUri": "../../design"}]}',
+        )
+        ..write('test/goldens/a.png', 'drawn with design');
+      final head = await repo.commit('a.png, drawn with design');
+      final seen = <String>[];
+      final flutter = FakeFlutter(
+        onFlutter: (arguments, folder) {
+          if (arguments.first != 'pub') return;
+          seen.add(File('${folder}pubspec_overrides.yaml').readAsStringSync());
+        },
+      );
+
+      await session(flutter).baselineFor('test/goldens/a.png');
+
+      final design = '${Directory(repo.dir).parent.path}/design';
+      expect(seen.single, contains('  design:\n    path: "$design"\n'));
+      expect(seen.single, isNot(contains('fixture')));
+      expect(
+        BaselineStore.open(cache.path, fakeKey()).at(head, 'root').command,
+        contains(
+          '<dir> $head && write <dir>/pubspec_overrides.yaml overriding '
+          'design && cd <dir>/ && ',
+        ),
+      );
+    });
+  });
+
   test('a golden outside the package compares with the committed image, '
       'and builds nothing', () async {
     repo.write('app/pubspec.yaml', 'name: app\n');

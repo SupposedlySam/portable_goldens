@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:portable_goldens/src/build/checkout_unavailable.dart';
 import 'package:portable_goldens/src/build/golden_test_files.dart';
+import 'package:portable_goldens/src/build/path_overrides.dart';
 import 'package:portable_goldens/src/build/png_snapshot.dart';
 import 'package:portable_goldens/src/build/throwaway_checkout.dart';
 import 'package:portable_goldens/src/git/git_repo.dart';
@@ -65,8 +66,12 @@ final class BaselineBuilder {
   /// leaves it where the next build's sweep finds it, and not in the system
   /// temp folder until a reboot.
   ///
+  /// Before its `pub get`, the checkout gets what a `git worktree` leaves
+  /// out: its submodules, and [PathOverrides] for the path dependencies
+  /// outside the repository, which its relative paths no longer reach.
+  ///
   /// Throws [CheckoutUnavailable] when git cannot check the commit out, and
-  /// [BuildFailure] when the commit's `pub get` or tests fail.
+  /// [BuildFailure] when the commit's submodules, `pub get` or tests fail.
   Future<Built> build(String commit, Directory into) async {
     if (isChild) {
       // The comparator does not get here in a child run; this is the second
@@ -99,33 +104,55 @@ final class BaselineBuilder {
       ...GoldenTestFiles(package, marker: goldenTestMarker).arguments,
     ];
     final flutter = sdk.flutter;
-    final shown =
-        'git worktree add --detach <dir> $commit '
-        '&& cd <dir>/${repo.location.prefix} '
-        '&& $flutter pub get && $flutter ${testArgs.join(' ')}';
+    final submodules = checkout.hasSubmodules;
+    // Before `pub get`, which is what needs them; written now, so the
+    // command below says what was done.
+    final overrides = PathOverrides.of(repo.location).writeInto(checkout.path);
+    final shown = [
+      'git worktree add --detach <dir> $commit',
+      ?overrides,
+      if (submodules)
+        'git -C <dir> ${ThrowawayCheckout.submoduleArguments.join(' ')}',
+      'cd <dir>/${repo.location.prefix}',
+      '$flutter pub get',
+      '$flutter ${testArgs.join(' ')}',
+    ].join(' && ');
     final env = Map.of(environment)
       // The parent is a test process; the child is a tool run.
       ..remove('FLUTTER_TEST')
       ..[childEnvironmentVariable] = '1';
 
-    Future<void> step(List<String> args, String what) async {
-      final result = await _run(
+    void check(ProcessResult? result, String what) {
+      if (result != null && result.exitCode == 0) return;
+      throw BuildFailure(
+        commit: commit,
+        command: shown,
+        message: result == null
+            ? '$what could not be started'
+            : '$what exited ${result.exitCode}',
+        output: result == null
+            ? ''
+            : tailOf('${result.stdout}\n${result.stderr}'),
+      );
+    }
+
+    Future<void> step(List<String> args, String what) async => check(
+      await _run(
         flutter,
         args,
         workingDirectory: package,
         environment: env,
         includeParentEnvironment: false,
-      );
-      if (result.exitCode != 0) {
-        throw BuildFailure(
-          commit: commit,
-          command: shown,
-          message: '`flutter ${args.first}` $what exited ${result.exitCode}',
-          output: tailOf('${result.stdout}\n${result.stderr}'),
-        );
-      }
-    }
+      ),
+      '`flutter ${args.first}` $what',
+    );
 
+    if (submodules) {
+      check(
+        await checkout.checkOutSubmodules(),
+        "`git submodule update` in the commit's checkout",
+      );
+    }
     await step(['pub', 'get'], "in the commit's checkout");
     final before = PngSnapshot.of(package);
     await step(testArgs, 'with --update-goldens');

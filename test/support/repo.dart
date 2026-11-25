@@ -47,7 +47,12 @@ class TestRepo {
 
   /// Runs git in [dir] and returns its trimmed output; fails on an error.
   Future<String> git(List<String> args) async {
-    final result = await Process.run('git', args, workingDirectory: dir);
+    final result = await Process.run(
+      'git',
+      args,
+      workingDirectory: dir,
+      environment: localSubmodules,
+    );
     if (result.exitCode != 0) {
       throw StateError('git ${args.join(' ')}: ${result.stderr}');
     }
@@ -75,7 +80,12 @@ class FakeFlutter {
     this.testExitCode = 0,
     this.checkoutFails = false,
     this.draw,
+    this.onFlutter,
   });
+
+  /// Called with each `flutter` run's arguments and folder before it runs,
+  /// while the checkout is still there to look at.
+  final void Function(List<String> arguments, String folder)? onFlutter;
 
   /// The bytes a run at a commit writes for a golden; text naming both, by
   /// default.
@@ -111,9 +121,13 @@ class FakeFlutter {
         executable,
         arguments,
         workingDirectory: workingDirectory,
+        // git refuses a submodule cloned from a local path unless told to
+        // (CVE-2022-39253); the tests' submodules are local folders.
+        environment: localSubmodules,
         stdoutEncoding: stdoutEncoding,
       );
     }
+    onFlutter?.call(arguments, workingDirectory!);
     if (arguments.first == 'pub') return ProcessResult(0, 0, '', '');
     testRuns.add((
       args: arguments,
@@ -137,3 +151,10 @@ class FakeFlutter {
     return ProcessResult(0, testExitCode, 'test output', 'Some tests failed.');
   }
 }
+
+/// The environment in which git clones a submodule from a local folder.
+const localSubmodules = {
+  'GIT_CONFIG_COUNT': '1',
+  'GIT_CONFIG_KEY_0': 'protocol.file.allow',
+  'GIT_CONFIG_VALUE_0': 'always',
+};
