@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:portable_goldens/src/build/setup_steps.dart';
 import 'package:portable_goldens/src/compare/notices.dart';
 import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/path_style.dart';
@@ -87,6 +88,9 @@ final class PortableGoldenComparator extends LocalFileComparator {
     } on BuildFailure catch (failure) {
       // Never a pass: a golden that could not be checked is not a match.
       throw FlutterError('Golden "$golden": $failure');
+    } on SetupConfigError catch (error) {
+      // Nor is one whose build would have skipped a step it was told to run.
+      throw FlutterError('Golden "$golden": $error');
     }
     final inPackage = _inPackage(path);
     final (

@@ -659,4 +659,130 @@ void main() {
       expect(await goldens.missing('**/goldens/**/*.png'), isEmpty);
     },
   );
+
+  group("the package's setup steps", () {
+    const generate = 'printf generated > gen.txt';
+
+    void configure(List<String> steps) => repo.write(
+      'pubspec.yaml',
+      'name: app\nportable_goldens:\n  setup:\n'
+          '${steps.map((s) => '    - "${s.replaceAll('"', r'\"')}"\n').join()}',
+    );
+
+    test("run in the commit's checkout after pub get and before its tests, "
+        "with the test's SDK first on the PATH", () async {
+      // In the working tree only: the steps are read as the package is now,
+      // not as the commit had it.
+      configure([generate]);
+      var generatedBeforeTests = false;
+      final flutter = FakeFlutter(
+        onFlutter: (args, folder) {
+          if (args.first == 'test') {
+            generatedBeforeTests =
+                File('$folder/gen.txt').readAsStringSync() == 'generated';
+          }
+        },
+      );
+
+      final baseline = await session(
+        flutter,
+        environment: {'PATH': '/usr/bin:/bin'},
+      ).baselineFor('test/goldens/a.png');
+
+      expect(flutter.sequence, [
+        'flutter pub',
+        'setup $generate',
+        'flutter test',
+      ]);
+      expect(generatedBeforeTests, isTrue);
+      final step = flutter.shellRuns.single;
+      expect(step.dir, flutter.testRuns.single.dir);
+      expect(step.env['PATH'], '/fake/flutter/bin:/usr/bin:/bin');
+      expect(step.env[childEnvironmentVariable], '1');
+      expect(flutter.testRuns.single.env['PATH'], step.env['PATH']);
+      expect(
+        (baseline as MachineBaseline).file.path,
+        contains('/${const SetupSteps([generate]).unitOf('root')}/'),
+      );
+    });
+
+    test('a step that fails fails the build, naming the step, and no test '
+        'runs', () async {
+      configure([generate, 'echo broke >&2; exit 3']);
+      final flutter = FakeFlutter();
+
+      await expectLater(
+        session(flutter).baselineFor('test/goldens/a.png'),
+        throwsA(
+          isA<BuildFailure>()
+              .having(
+                (f) => f.message,
+                'message',
+                'setup step `echo broke >&2; exit 3` (from '
+                    '`portable_goldens: setup:` in pubspec.yaml) exited 3',
+              )
+              .having((f) => f.output, 'output', contains('broke'))
+              .having(
+                (f) => f.command,
+                'command',
+                contains(
+                  r'flutter pub get && export PATH="/fake/flutter/bin:$PATH" '
+                  '&& $generate && echo broke >&2; exit 3 && ',
+                ),
+              ),
+        ),
+      );
+      expect(flutter.testRuns, isEmpty);
+    });
+
+    test('other steps build again, into a folder of their own, and leave the '
+        "old steps' baselines", () async {
+      final before = await session(
+        FakeFlutter(),
+      ).baselineFor('test/goldens/a.png') as MachineBaseline;
+      configure([generate]);
+      final flutter = FakeFlutter();
+
+      final after = await session(
+        flutter,
+      ).baselineFor('test/goldens/a.png') as MachineBaseline;
+
+      expect(flutter.testRuns, hasLength(1));
+      expect(after.file.path, isNot(before.file.path));
+      expect(before.file.existsSync(), isTrue);
+    });
+
+    test('without steps, the build runs none and the folder is named as '
+        'before', () async {
+      final flutter = FakeFlutter();
+
+      final baseline = await session(
+        flutter,
+      ).baselineFor('test/goldens/a.png') as MachineBaseline;
+
+      expect(flutter.sequence, ['flutter pub', 'flutter test']);
+      expect(baseline.file.path, contains('/root/'));
+    });
+
+    test('a configuration it cannot read fails every golden before anything '
+        'runs', () async {
+      repo.write('pubspec.yaml', 'portable_goldens:\n  setpu: [make gen]\n');
+      final flutter = FakeFlutter();
+      final goldens = session(flutter);
+
+      for (final golden in ['test/goldens/a.png', 'test/goldens/b.png']) {
+        await expectLater(
+          goldens.baselineFor(golden),
+          throwsA(
+            isA<SetupConfigError>().having(
+              (e) => e.problem,
+              'problem',
+              contains('`setpu`'),
+            ),
+          ),
+        );
+      }
+      expect(flutter.sequence, isEmpty);
+    });
+  });
 }

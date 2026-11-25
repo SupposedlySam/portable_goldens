@@ -66,4 +66,21 @@ void main() {
     expect(out, isNot(contains('every baseline is in place')));
     expect(out, contains('1 golden not written by a build that passed.'));
   });
+
+  test('a configuration it cannot read exits 1, naming it, and builds '
+      'nothing', () async {
+    repo.write('pubspec.yaml', 'portable_goldens:\n  setup: make gen\n');
+    final flutter = FakeFlutter();
+
+    final (code, out, err) = await run(flutter);
+
+    expect(code, 1);
+    expect(
+      err,
+      'prepare: portable_goldens cannot read its configuration in '
+      '${repo.dir}/pubspec.yaml: `portable_goldens.setup` is not a list of '
+      'command lines.\n',
+    );
+    expect(flutter.sequence, isEmpty);
+  });
 }

@@ -4,10 +4,12 @@ import 'package:portable_goldens/src/build/checkout_unavailable.dart';
 import 'package:portable_goldens/src/build/golden_test_files.dart';
 import 'package:portable_goldens/src/build/path_overrides.dart';
 import 'package:portable_goldens/src/build/png_snapshot.dart';
+import 'package:portable_goldens/src/build/setup_steps.dart';
 import 'package:portable_goldens/src/build/throwaway_checkout.dart';
 import 'package:portable_goldens/src/git/git_repo.dart';
 import 'package:portable_goldens/src/machine/flutter_sdk.dart';
 import 'package:portable_goldens/src/process/process_runner.dart';
+import 'package:portable_goldens/src/process/shell.dart';
 import 'package:portable_goldens/src/store/build_failure.dart';
 
 /// Set in the environment of the `flutter test` that builds baselines.
@@ -30,6 +32,7 @@ final class BaselineBuilder {
     required this.repo,
     required this.sdk,
     required this.environment,
+    this.setup = SetupSteps.none,
     this.goldenTestMarker = defaultGoldenTestMarker,
     ProcessRunner runProcess = Process.run,
   }) : _run = runProcess;
@@ -43,6 +46,9 @@ final class BaselineBuilder {
 
   /// This process's environment, which the child inherits.
   final Map<String, String> environment;
+
+  /// What the checkout runs after `pub get`, before its tests.
+  final SetupSteps setup;
 
   /// A test file at the commit is run when its source contains this.
   final String goldenTestMarker;
@@ -68,10 +74,12 @@ final class BaselineBuilder {
   ///
   /// Before its `pub get`, the checkout gets what a `git worktree` leaves
   /// out: its submodules, and [PathOverrides] for the path dependencies
-  /// outside the repository, which its relative paths no longer reach.
+  /// outside the repository, which its relative paths no longer reach. After
+  /// it, the [setup] steps run, in the platform's [Shell].
   ///
   /// Throws [CheckoutUnavailable] when git cannot check the commit out, and
-  /// [BuildFailure] when the commit's submodules, `pub get` or tests fail.
+  /// [BuildFailure] when the commit's submodules, `pub get`, a setup step or
+  /// its tests fail.
   Future<Built> build(String commit, Directory into) async {
     if (isChild) {
       // The comparator does not get here in a child run; this is the second
@@ -104,6 +112,7 @@ final class BaselineBuilder {
       ...GoldenTestFiles(package, marker: goldenTestMarker).arguments,
     ];
     final flutter = sdk.flutter;
+    final shell = Shell.current;
     final submodules = checkout.hasSubmodules;
     // Before `pub get`, which is what needs them; written now, so the
     // command below says what was done.
@@ -115,9 +124,17 @@ final class BaselineBuilder {
         'git -C <dir> ${ThrowawayCheckout.submoduleArguments.join(' ')}',
       'cd <dir>/${repo.location.prefix}',
       '$flutter pub get',
+      // A step's `dart` or `flutter` is the test's SDK, as in the build.
+      if (!setup.isEmpty) ...[
+        if (shell == Shell.posix) 'export PATH="${sdk.bin}:\$PATH"',
+        ...setup.commands,
+      ],
       '$flutter ${testArgs.join(' ')}',
     ].join(' && ');
-    final env = Map.of(environment)
+    // The SDK first on the PATH: a setup step's `dart run build_runner`, or
+    // a commit's test that starts `dart`, then runs the SDK the key names,
+    // not whichever one the developer's PATH finds first.
+    final env = shell.withFirstOnPath(environment, sdk.bin)
       // The parent is a test process; the child is a tool run.
       ..remove('FLUTTER_TEST')
       ..[childEnvironmentVariable] = '1';
@@ -154,6 +171,18 @@ final class BaselineBuilder {
       );
     }
     await step(['pub', 'get'], "in the commit's checkout");
+    for (final command in setup.commands) {
+      check(
+        await _run(
+          shell.executable,
+          shell.arguments(command),
+          workingDirectory: package,
+          environment: env,
+          includeParentEnvironment: false,
+        ),
+        'setup step `$command` (from `$configKey: setup:` in pubspec.yaml)',
+      );
+    }
     final before = PngSnapshot.of(package);
     await step(testArgs, 'with --update-goldens');
     // What the run wrote, and only that: a png that was in the checkout and

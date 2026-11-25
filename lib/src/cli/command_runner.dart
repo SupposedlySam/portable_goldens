@@ -1,4 +1,5 @@
 import 'package:portable_goldens/src/build/baseline_builder.dart';
+import 'package:portable_goldens/src/build/setup_steps.dart';
 import 'package:portable_goldens/src/cli/argument_parser.dart';
 import 'package:portable_goldens/src/cli/command_context.dart';
 import 'package:portable_goldens/src/cli/commands/prepare_command.dart';
@@ -20,7 +21,8 @@ const List<GoldensCommand> commands = [
 /// process's folder, streams and environment), and returns the exit code.
 ///
 /// A command run inside a baseline build is refused: a commit's own tests
-/// calling `prepare` would build baselines from within a build.
+/// calling `prepare` would build baselines from within a build. A
+/// `portable_goldens` configuration it cannot read exits 1, naming it.
 Future<int> runPortableGoldens(
   String name,
   List<String> args, {
@@ -50,6 +52,11 @@ Future<int> runPortableGoldens(
         ctx.err.writeln('$name: refused inside a baseline build.');
         return ExitCode.failure.code;
       }
-      return (await command.run(ctx, arguments)).code;
+      try {
+        return (await command.run(ctx, arguments)).code;
+      } on SetupConfigError catch (error) {
+        ctx.err.writeln('$name: $error');
+        return ExitCode.failure.code;
+      }
   }
 }

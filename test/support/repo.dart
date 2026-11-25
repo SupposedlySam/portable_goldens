@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:portable_goldens/baselines.dart';
+import 'package:portable_goldens/src/process/shell.dart';
 
 /// The key the tests' machine has; [osVersion] fakes an OS update.
 MachineKey fakeKey({String osVersion = 'Version 27.2.1 (Build 26B131)'}) =>
@@ -72,7 +73,8 @@ class TestRepo {
 
 /// Stands in for `flutter`: `pub get` passes, and `test --update-goldens`
 /// "renders" each golden in [renders] into the checkout it runs in, writing
-/// `rendered <golden> at <commit>`. git runs for real.
+/// `rendered <golden> at <commit>`. git, and a setup step's shell, run for
+/// real.
 class FakeFlutter {
   /// Draws [renders] (package-relative), failing with [testExitCode].
   new({
@@ -104,6 +106,15 @@ class FakeFlutter {
   final testRuns =
       <({List<String> args, Map<String, String> env, String? dir})>[];
 
+  /// Every setup step run in the shell: its command line, environment and
+  /// folder.
+  final shellRuns =
+      <({String command, Map<String, String> env, String? dir})>[];
+
+  /// What ran, in order, git aside: `flutter pub`, `flutter test`, or
+  /// `setup <command line>`.
+  final sequence = <String>[];
+
   /// The [ProcessRunner] to hand to the code under test.
   Future<ProcessResult> call(
     String executable,
@@ -127,7 +138,24 @@ class FakeFlutter {
         stdoutEncoding: stdoutEncoding,
       );
     }
+    if (executable == Shell.current.executable) {
+      final command = arguments.last;
+      sequence.add('setup $command');
+      shellRuns.add((
+        command: command,
+        env: environment ?? const {},
+        dir: workingDirectory,
+      ));
+      return await Process.run(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+        includeParentEnvironment: includeParentEnvironment,
+      );
+    }
     onFlutter?.call(arguments, workingDirectory!);
+    sequence.add('flutter ${arguments.first}');
     if (arguments.first == 'pub') return ProcessResult(0, 0, '', '');
     testRuns.add((
       args: arguments,

@@ -27,9 +27,12 @@ final class FlutterSdk {
   /// The SDK's folder.
   final String root;
 
+  /// Its `bin` folder, which holds `flutter` and `dart`.
+  String get bin => _join([root, 'bin']);
+
   /// Its `flutter` executable.
   String get flutter =>
-      _join([root, 'bin', 'flutter${Platform.isWindows ? '.bat' : ''}']);
+      _join([bin, 'flutter${Platform.isWindows ? '.bat' : ''}']);
 
   /// Its `dart` executable.
   String get dart => _join([

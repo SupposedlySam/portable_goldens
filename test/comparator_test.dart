@@ -379,4 +379,27 @@ void main() {
       );
     });
   });
+
+  test(
+    'a configuration it cannot read fails the golden, never passes it',
+    () async {
+      repo.write('pubspec.yaml', 'portable_goldens: [make gen]\n');
+
+      await expectLater(
+        comparator().compare(renderedHere, golden),
+        throwsA(
+          isA<FlutterError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              startsWith(
+                'Golden "goldens/a.png": portable_goldens cannot read',
+              ),
+              contains('`portable_goldens` is not a map'),
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }

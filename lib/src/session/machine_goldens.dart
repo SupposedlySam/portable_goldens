@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:portable_goldens/src/build/baseline_builder.dart';
+import 'package:portable_goldens/src/build/setup_steps.dart';
 import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/git_repo.dart';
 import 'package:portable_goldens/src/machine/flutter_sdk.dart';
@@ -152,6 +153,10 @@ final class MachineGoldens {
         repo: repo,
         sdk: sdk,
         environment: environment,
+        // Read once per process, and only where a build may run. A
+        // configuration this cannot read throws [SetupConfigError] out of
+        // every question, so every golden fails naming it.
+        setup: SetupSteps.read(packageDir),
         goldenTestMarker: goldenTestMarker,
         runProcess: _runProcess,
       ),

@@ -6,6 +6,8 @@ library;
 export 'src/build/baseline_builder.dart'
     show BaselineBuilder, childEnvironmentVariable, defaultGoldenTestMarker;
 export 'src/build/checkout_unavailable.dart' show CheckoutUnavailable;
+export 'src/build/setup_steps.dart'
+    show SetupConfigError, SetupSteps, configKey;
 export 'src/git/committed_file.dart'
     show CommittedBytes, CommittedFile, LfsPointer, UnknownFile, UnreadFile;
 export 'src/git/git_repo.dart' show GitRepo;

@@ -138,7 +138,9 @@ final class ActiveSession extends GoldensSession {
 
   final _fills = <String, Future<void>>{};
 
-  String get _unit => repo.location.unit;
+  // The package's folder in the cache, apart from baselines built with
+  // other setup steps.
+  String get _unit => builder.setup.unitOf(repo.location.unit);
 
   @override
   Directory get machineDir => store.machineDir;
