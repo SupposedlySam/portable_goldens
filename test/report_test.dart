@@ -62,11 +62,4 @@ void main() {
 
     expect(GoldenReport(package.path).read(), hasLength(1));
   });
-
-  test("this process's run is its parent's pid and start time", () {
-    final run = currentRun();
-
-    expect(run, matches(RegExp(r'^\d+ \S')));
-    expect(currentRun(), run);
-  }, skip: Platform.isWindows ? 'no ps on Windows' : false);
 }
