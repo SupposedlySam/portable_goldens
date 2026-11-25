@@ -28,8 +28,8 @@ final class GoldenReport {
   final String? Function() _run;
 
   /// The test run that writes here, asked once per process and only when an
-  /// entry is written. Where it is null (Windows), entries are never swept,
-  /// only replaced.
+  /// entry is written. Where it is null (the OS's process table would not
+  /// answer), entries are never swept, only replaced.
   late final String? run = _run();
 
   bool _swept = false;

@@ -20,7 +20,7 @@ It is NOT the right tool when:
 - the repository has no git history available (a shallow CI clone falls back to plain compares);
 - the tests use a package that installs its own comparator inside each test, such as alchemist's
   `goldenTest`; it replaces this comparator for the test;
-- the tests run on Windows (not supported yet: every golden falls back to the committed image).
+- the tests run on Windows (not supported yet: written for, never run there).
 
 ## Adding it to a project
 

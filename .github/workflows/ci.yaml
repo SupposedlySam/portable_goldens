@@ -6,7 +6,8 @@
 # whole test suite, the publish dry run, and the README's workflow run for
 # real in a new consumer repository (tool/consumer_workflow.sh).
 #
-# What it does not check: Windows (not supported yet), Flutter releases other
+# What it does not check: Windows on every push (the windows job runs only
+# when started by hand, until it has passed once), Flutter releases other
 # than the one in .fvmrc, that two different machines agree (each job is one
 # machine), and Git LFS goldens.
 name: ci
@@ -62,3 +63,32 @@ jobs:
 
       - name: Publish dry run
         run: flutter pub publish --dry-run
+
+  # Windows is written for (paths, hooks, the test-run lookup) but has never
+  # run. It joins the matrix above once this has passed; until then a red run
+  # here is news, not a broken branch.
+  windows:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        # The guards and the consumer workflow are bash; Git for Windows has it.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: kuhnroyal/flutter-fvm-config-action/setup@v3
+        with:
+          path: .fvmrc
+
+      - name: Resolve
+        run: flutter pub get
+
+      - name: Test
+        run: flutter test
+
+      - name: The README's workflow, in a new consumer repository
+        run: tool/consumer_workflow.sh

@@ -54,8 +54,8 @@ What follows from that:
   [Fallbacks](#fallbacks)). Goldens in Git LFS need `git lfs`, and git 2.42 or later to read
   each commit's png through that commit's own `.gitattributes`; an older git uses the working
   tree's.
-- macOS or Linux. Windows is not supported yet: path handling assumes `/`, so expect every golden
-  there to fall back to the committed image.
+- macOS or Linux. Windows is not supported yet: the code handles its paths, hooks and process
+  table, but it has never been run there.
 - Tests that use `matchesGoldenFile` with Flutter's own `LocalFileComparator`. A package that
   swaps in its own comparator during each test, as alchemist's `goldenTest` does, takes the
   compare back from portable_goldens.
