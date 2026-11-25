@@ -396,6 +396,34 @@ void main() {
       },
     );
 
+    test("none of the repository's hooks, which a plain worktree add "
+        'runs', () async {
+      final marker = File('${cache.path}/hook ran');
+      repo.write(
+        '.git/hooks/post-checkout',
+        '#!/bin/sh\necho "\$PWD" >> "${marker.path}"\n',
+      );
+      if (!Platform.isWindows) {
+        await Process.run('chmod', [
+          '+x',
+          '${repo.dir}/.git/hooks/post-checkout',
+        ]);
+      }
+      // The control: the hook is live, so its absence below means something.
+      final probe = '${cache.path}/probe';
+      await repo.git(['worktree', 'add', '--quiet', '--detach', probe, 'HEAD']);
+      expect(marker.existsSync(), isTrue, reason: 'the hook never ran');
+      await repo.git(['worktree', 'remove', '--force', probe]);
+      marker.deleteSync();
+      final flutter = FakeFlutter();
+
+      final baseline = await session(flutter).baselineFor('test/goldens/a.png');
+
+      expect(baseline, isA<MachineBaseline>());
+      expect(flutter.testRuns, hasLength(1));
+      expect(marker.existsSync(), isFalse, reason: 'the build ran a hook');
+    });
+
     test('a submodule that cannot be fetched is a loud failure naming the '
         'step, and runs no flutter', () async {
       final library = await TestRepo.create();

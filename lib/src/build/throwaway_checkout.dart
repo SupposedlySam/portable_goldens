@@ -6,7 +6,7 @@ import 'package:portable_goldens/src/git/git_repo.dart';
 /// A detached `git worktree` of one commit, which lives as long as one
 /// callback and is removed after it, however it ends.
 final class ThrowawayCheckout {
-  new _(this._repo, this.path, this.packageDir);
+  new _(this._repo, this.path, this.packageDir, this._noHooks);
 
   /// The git arguments that check out a checkout's submodules, at the
   /// commits it records, and theirs in turn.
@@ -18,6 +18,9 @@ final class ThrowawayCheckout {
   ];
 
   final GitRepo _repo;
+
+  // Git configuration that runs none of the repository's hooks.
+  final List<String> _noHooks;
 
   /// The checkout's folder.
   final String path;
@@ -52,9 +55,14 @@ final class ThrowawayCheckout {
     Future<T> Function(ThrowawayCheckout checkout) body,
   ) async {
     await repo.result(['worktree', 'prune']);
+    // Hooks are looked up in core.hooksPath, so an empty folder runs none, on
+    // every OS. `/dev/null` did the same on macOS and Linux only; Windows ran
+    // the hooks.
+    final hooks = Directory.systemTemp.createTempSync('portable_goldens_hooks');
+    final noHooks = ['-c', 'core.hooksPath=${hooks.path}'];
     try {
       final added = await repo.result([
-        ..._noHooks,
+        ...noHooks,
         'worktree',
         'add',
         '--detach',
@@ -68,18 +76,19 @@ final class ThrowawayCheckout {
         );
       }
       return await body(
-        ThrowawayCheckout._(repo, path, '$path/${repo.location.prefix}'),
+        ThrowawayCheckout._(
+          repo,
+          path,
+          '$path/${repo.location.prefix}',
+          noHooks,
+        ),
       );
     } finally {
       await repo.result(['worktree', 'remove', '--force', path]);
       final left = Directory(path);
       if (left.existsSync()) left.deleteSync(recursive: true);
       await repo.result(['worktree', 'prune']);
+      hooks.deleteSync(recursive: true);
     }
   }
 }
-
-// Git configuration that runs none of the repository's hooks.
-final _noHooks = [
-  if (!Platform.isWindows) ...['-c', 'core.hooksPath=/dev/null'],
-];
