@@ -2,15 +2,25 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:portable_goldens/src/process/process_runner.dart';
 import 'package:portable_goldens/src/process/shell.dart';
 
 void main() {
   group('posix', () {
     const shell = Shell.posix;
 
-    test('runs a command line as sh would', () {
-      expect(shell.executable, '/bin/sh');
-      expect(shell.arguments('a && b'), ['-c', 'a && b']);
+    test('runs a command line as sh would', () async {
+      final runs = <List<String>>[];
+      await shell.run(
+        'a && b',
+        runner: recorder(runs),
+        workingDirectory: '/w',
+        environment: {},
+      );
+
+      expect(runs, [
+        ['/bin/sh', '-c', 'a && b'],
+      ]);
     });
 
     test('puts a folder first on the PATH', () {
@@ -36,9 +46,24 @@ void main() {
   group('windows', () {
     const shell = Shell.windows;
 
-    test('runs a command line in cmd, without AutoRun', () {
-      expect(shell.executable, 'cmd.exe');
-      expect(shell.arguments('a && b'), ['/d', '/s', '/c', 'a && b']);
+    test('runs a command line as the one line of a batch file, without '
+        'AutoRun, and deletes the file after', () async {
+      final runs = <List<String>>[];
+      final scripts = <String>[];
+      await shell.run(
+        'set "X=a b" && echo %X%',
+        runner: recorder(
+          runs,
+          onRun: (args) => scripts.add(File(args.last).readAsStringSync()),
+        ),
+        workingDirectory: '/w',
+        environment: {},
+      );
+
+      expect(runs.single.take(3), ['cmd.exe', '/d', '/c']);
+      expect(runs.single.last, endsWith('step.cmd'));
+      expect(scripts, ['@echo off\r\nset "X=a b" && echo %X%\r\n']);
+      expect(File(runs.single.last).parent.existsSync(), isFalse);
     });
 
     test('changes the PATH variable that is there, whatever its case', () {
@@ -48,28 +73,71 @@ void main() {
     });
   });
 
-  test("the shown command puts a folder first on the commands' PATH, as "
-      'this OS runs it', () async {
+  group('on this OS, for real', () {
     final shell = Shell.current;
-    final folder = Platform.isWindows ? r'C:\sdk\bin' : '/sdk/bin';
-    // cmd expands `%PATH%` when it reads the line, before `set` runs; `set
-    // PATH` lists the variables starting PATH as they are when it runs.
-    final printPath = Platform.isWindows ? 'set PATH' : r'echo "PATH=$PATH"';
-    final result = await Process.run(
-      shell.executable,
-      shell.arguments('${shell.firstOnPathCommand(folder)} && $printPath'),
-    );
-    final expected = shell
-        .withFirstOnPath(Platform.environment, folder)
-        .entries
-        .singleWhere((e) => e.key.toUpperCase() == 'PATH')
-        .value;
+    final cwd = Directory.current.path;
 
-    expect(result.exitCode, 0, reason: '${result.stderr}');
-    final shown = const LineSplitter()
-        .convert('${result.stdout}')
-        .singleWhere((line) => line.toUpperCase().startsWith('PATH='));
-    expect(shown.substring('PATH='.length), expected);
+    Future<ProcessResult> run(String commandLine, {Map<String, String>? env}) =>
+        shell.run(
+          commandLine,
+          runner: Process.run,
+          workingDirectory: cwd,
+          environment: env ?? Platform.environment,
+        );
+
+    test(
+      "the shown command puts a folder first on the commands' PATH",
+      () async {
+        final folder = Platform.isWindows ? r'C:\sdk\bin' : '/sdk/bin';
+        // cmd expands `%PATH%` when it reads the line, before `set` runs; `set
+        // PATH` lists the variables starting PATH as they are when it runs.
+        final printPath = Platform.isWindows
+            ? 'set PATH'
+            : r'echo "PATH=$PATH"';
+        final result = await run(
+          '${shell.firstOnPathCommand(folder)} && $printPath',
+        );
+        final expected = shell
+            .withFirstOnPath(Platform.environment, folder)
+            .entries
+            .singleWhere((e) => e.key.toUpperCase() == 'PATH')
+            .value;
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final shown = const LineSplitter()
+            .convert('${result.stdout}')
+            .singleWhere((line) => line.toUpperCase().startsWith('PATH='));
+        expect(shown.substring('PATH='.length), expected);
+      },
+    );
+
+    test('double quotes, && and variables reach the shell intact', () async {
+      final result = await run(
+        Platform.isWindows
+            ? 'echo "a b"&& echo %X%'
+            : r'echo "a b" && echo "$X"',
+        env: {...Platform.environment, 'X': 'set'},
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(const LineSplitter().convert('${result.stdout}'), [
+        // cmd's echo prints its quotes, and the space before `&&`.
+        if (Platform.isWindows) '"a b"' else 'a b',
+        'set',
+      ]);
+    });
+
+    test('a failing command fails the line, with its exit code, and what '
+        'follows && does not run', () async {
+      final result = await run(
+        Platform.isWindows
+            ? 'cmd /d /c exit 4 && echo ran'
+            : 'sh -c "exit 4" && echo ran',
+      );
+
+      expect(result.exitCode, 4);
+      expect('${result.stdout}', isNot(contains('ran')));
+    });
   });
 
   test('the shown command for each shell', () {
@@ -83,15 +151,23 @@ void main() {
   test('the shell of this OS', () {
     expect(Shell.current, Platform.isWindows ? Shell.windows : Shell.posix);
   });
-
-  test('a real step: quoting and && reach the shell intact', () async {
-    const shell = Shell.posix;
-    final result = await Process.run(
-      shell.executable,
-      shell.arguments("printf '%s' 'a b' && printf ' %s' \"\$X\""),
-      environment: {'X': 'set'},
-    );
-
-    expect(result.stdout, 'a b set');
-  }, skip: Platform.isWindows ? 'needs /bin/sh' : null);
 }
+
+/// A [ProcessRunner] that records each run, executable first, and succeeds;
+/// [onRun] sees the arguments while the run is in progress.
+ProcessRunner recorder(
+  List<List<String>> runs, {
+  void Function(List<String> arguments)? onRun,
+}) =>
+    (
+      executable,
+      arguments, {
+      workingDirectory,
+      environment,
+      includeParentEnvironment = true,
+      stdoutEncoding,
+    }) async {
+      runs.add([executable, ...arguments]);
+      onRun?.call(arguments);
+      return ProcessResult(0, 0, '', '');
+    };

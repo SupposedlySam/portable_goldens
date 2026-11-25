@@ -173,12 +173,11 @@ final class BaselineBuilder {
     await step(['pub', 'get'], "in the commit's checkout");
     for (final command in setup.commands) {
       check(
-        await _run(
-          shell.executable,
-          shell.arguments(command),
+        await shell.run(
+          command,
+          runner: _run,
           workingDirectory: package,
           environment: env,
-          includeParentEnvironment: false,
         ),
         'setup step `$command` (from `$configKey: setup:` in pubspec.yaml)',
       );

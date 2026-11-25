@@ -124,7 +124,8 @@ repository or the package; no commit has it; its commit cannot be checked out.
   `git lfs` is installed. A pointer, where it is not, is never compared: it is reported as unknown.
 - Setup steps (`portable_goldens: setup:` in the package's `pubspec.yaml`, a list of command
   lines) run in the build's checkout after `flutter pub get` and before the tests, through
-  `/bin/sh -c` (`cmd.exe` on Windows), with the test's SDK first on `PATH`. They are read from the
+  `/bin/sh -c` (on Windows, as the one line of a batch file run by `cmd.exe /d /c`, so `%` is
+  written `%%`), with the test's SDK first on `PATH`. They are read from the
   pubspec on disk, not the commit's, and their hash is part of the unit's folder name
   (`root@<16 hex>`). A configuration that cannot be read throws `SetupConfigError`, which fails
   every golden and `prepare`, `report` and `verify`.

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:portable_goldens/src/process/process_runner.dart';
+
 /// The shell a command line from the user's configuration runs in, and how
 /// its `PATH` is written.
 ///
@@ -7,11 +9,19 @@ import 'dart:io';
 /// runs the way a developer would type it: quoting, `&&` and variables
 /// included. Splitting it into arguments here would be a second, weaker shell.
 enum Shell {
-  /// `/bin/sh -c`, with `:` between `PATH` entries.
+  /// `/bin/sh -c <command line>`, with `:` between `PATH` entries.
   posix,
 
-  /// `cmd.exe /d /s /c`, with `;` between `PATH` entries. `/d` skips the
-  /// user's AutoRun commands, so a build does not depend on them.
+  /// `cmd.exe /d /c <batch file>`, the command line its one line, with `;`
+  /// between `PATH` entries. `/d` skips the user's AutoRun commands, so a
+  /// build does not depend on them.
+  ///
+  /// Not `cmd.exe /d /s /c <command line>`: Dart quotes a Windows argument
+  /// the way C programs parse one, writing each `"` as `\"`, and cmd reads
+  /// no backslash escapes. A step with a double quote in it, such as
+  /// `set "PATH=..."`, reached cmd mangled and did something else (CI,
+  /// 2026-11-25). cmd reads a batch file's lines as written. The cost is
+  /// batch syntax: a literal `%` is written `%%`, and `%1` is an argument.
   windows;
 
   /// The shell of the OS this runs on.
@@ -23,11 +33,35 @@ enum Shell {
     windows => 'cmd.exe',
   };
 
-  /// The arguments that run [commandLine] in [executable].
-  List<String> arguments(String commandLine) => switch (this) {
-    posix => ['-c', commandLine],
-    windows => ['/d', '/s', '/c', commandLine],
-  };
+  /// Runs [commandLine] with [runner] in [workingDirectory], with exactly
+  /// [environment].
+  Future<ProcessResult> run(
+    String commandLine, {
+    required ProcessRunner runner,
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    Future<ProcessResult> start(List<String> arguments) => runner(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+      environment: environment,
+      includeParentEnvironment: false,
+    );
+    switch (this) {
+      case posix:
+        return await start(['-c', commandLine]);
+      case windows:
+        final dir = Directory.systemTemp.createTempSync('portable_goldens_');
+        try {
+          final script = File('${dir.path}${Platform.pathSeparator}step.cmd')
+            ..writeAsStringSync('@echo off\r\n$commandLine\r\n');
+          return await start(['/d', '/c', script.path]);
+        } finally {
+          dir.deleteSync(recursive: true);
+        }
+    }
+  }
 
   /// The command line that puts [folder] first on the `PATH` of the commands
   /// after it, as [withFirstOnPath] does for the process: for a build's

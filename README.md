@@ -109,8 +109,9 @@ portable_goldens:
 ```
 
 Each command runs in the checkout's package folder after `flutter pub get` and before the tests,
-in order, through `/bin/sh -c` (`cmd.exe /d /s /c` on Windows), so quoting, `&&` and variables
-work as in a terminal. The test's Flutter SDK is first on its `PATH`, so `dart` and `flutter` are
+in order, through `/bin/sh -c`, so quoting, `&&` and variables work as in a terminal. On Windows
+each command is the one line of a batch file run by `cmd.exe /d /c`, so it is batch syntax there:
+write a literal `%` as `%%`. The test's Flutter SDK is first on its `PATH`, so `dart` and `flutter` are
 that SDK's. A command that exits non-zero fails the build, with its output and the whole build's
 command, and no test runs.
 

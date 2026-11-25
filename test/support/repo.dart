@@ -137,7 +137,10 @@ class FakeFlutter {
       );
     }
     if (executable == Shell.current.executable) {
-      final command = arguments.last;
+      // On Windows the step is the line after `@echo off` in a batch file.
+      final command = Platform.isWindows
+          ? File(arguments.last).readAsLinesSync().last
+          : arguments.last;
       sequence.add('setup $command');
       shellRuns.add((
         command: command,
