@@ -19,8 +19,10 @@ dependencies:
   flutter_test:
     sdk: flutter
   # Reads `portable_goldens: setup:` from the consumer's pubspec. It is the
-  # Dart team's, and already in every Flutter package's resolution; a reader
-  # of our own would misread flow lists, quoting and comments.
+  # Dart team's, and its own dependencies (collection, source_span,
+  # string_scanner) are already resolved for flutter and flutter_test, so it
+  # adds one package; a reader of our own would misread flow lists, quoting
+  # and comments.
   yaml: ^3.1.3
 
 dev_dependencies:

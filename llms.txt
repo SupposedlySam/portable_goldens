@@ -156,8 +156,9 @@ Rules the code already follows. Keep them:
 - Cache writes are atomic (a temporary file or folder, then a rename), because every test file
   runs in its own process and they all open the store at once.
 - No dependencies beyond `flutter`, `flutter_test` and `yaml`, which is why `cli/` parses its
-  own arguments. `yaml` reads the setup steps: it is the Dart team's and already in every Flutter
-  package's resolution, and a hand-written reader would misread YAML silently.
+  own arguments. `yaml` reads the setup steps: it is the Dart team's, its own dependencies are
+  already resolved for `flutter` and `flutter_test`, so it adds one package, and a hand-written
+  reader would misread YAML silently.
 - No `!` in `lib/` or `bin/`: `tool/check_null_assertions.sh` fails on one.
 - A command never calls `exit` or touches `stdout` itself; it writes to its `CommandContext` and
   returns an `ExitCode`, so the tests run it in process.
