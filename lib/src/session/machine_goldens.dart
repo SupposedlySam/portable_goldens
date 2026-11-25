@@ -66,6 +66,9 @@ final class MachineGoldens {
   /// The goldens matching [pathspec] (a git pathspec, relative to the
   /// package) whose baselines are missing on this machine, by the commit
   /// that last changed each.
+  ///
+  /// Every path this class returns is relative to the package, the form a
+  /// test names a golden in and the report records it in.
   Future<Map<String, List<String>>> missing(String pathspec) =>
       _session.then((s) => s.missing(pathspec));
 
@@ -77,13 +80,18 @@ final class MachineGoldens {
   /// Builds [commit]'s baselines, once.
   Future<void> build(String commit) => _session.then((s) => s.build(commit));
 
-  /// The tracked goldens matching [pathspec], repo-relative.
+  /// The tracked goldens matching [pathspec].
   Future<List<String>> goldens(String pathspec) =>
       _session.then((s) => s.goldens(pathspec));
 
+  /// The bytes of the golden at [path] (absolute, or relative to the
+  /// package) as [commit] has it, or null when it has none or machine
+  /// baselines are not used.
+  Future<List<int>?> committedImage(String commit, String path) =>
+      _session.then((s) => s.committedImage(commit, path));
+
   /// The goldens matching [pathspec] that this branch changed since its
-  /// merge-base with the default branch, relative to the package and sorted:
-  /// the form the report records a golden in.
+  /// merge-base with the default branch, sorted.
   Future<List<String>> changedByBranch(String pathspec) =>
       _session.then((s) => s.changedByBranch(pathspec));
 

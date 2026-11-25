@@ -351,6 +351,34 @@ void main() {
     expect(await goldens.fallbackReason, isNull);
   });
 
+  test('a package below the top level lists, and reads, its goldens by '
+      'package-relative paths', () async {
+    repo
+      ..write('app/pubspec.yaml', 'name: app\n')
+      ..write('app/test/goldens/c.png', 'committed c');
+    final head = await repo.commit('an app below the root');
+    final goldens = MachineGoldens(
+      packageDir: '${repo.dir}/app',
+      environment: const {'FLUTTER_ROOT': '/fake/flutter'},
+      key: fakeKey(),
+      cacheRoot: cache.path,
+      runProcess: FakeFlutter().call,
+    );
+
+    expect(await goldens.goldens('**/goldens/**/*.png'), [
+      'test/goldens/c.png',
+    ]);
+    expect(await goldens.missing('**/goldens/**/*.png'), {
+      head: ['test/goldens/c.png'],
+    });
+    expect(
+      await goldens.committedImage(head, 'test/goldens/c.png'),
+      'committed c'.codeUnits,
+    );
+    // The root package's goldens are not this package's.
+    expect(await goldens.committedImage(head, 'test/goldens/a.png'), isNull);
+  });
+
   test('a commit that cannot be checked out compares with the committed '
       'image', () async {
     final baseline = await session(FakeFlutter(checkoutFails: true))

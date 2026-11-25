@@ -21,7 +21,7 @@ sealed class GoldensSession {
   Future<GoldenBaseline> baselineFor(String path);
 
   /// The goldens matching [pathspec] whose baselines are missing here, by
-  /// the commit that last changed each.
+  /// the commit that last changed each; package-relative.
   Future<Map<String, List<String>>> missing(String pathspec);
 
   /// How this branch changed the golden at [path], or null.
@@ -30,8 +30,12 @@ sealed class GoldensSession {
   /// Builds [commit]'s baselines, once.
   Future<void> build(String commit);
 
-  /// The tracked goldens matching [pathspec], repo-relative.
+  /// The tracked goldens matching [pathspec], package-relative.
   Future<List<String>> goldens(String pathspec);
+
+  /// The bytes of the golden at [path] (absolute, or relative to the
+  /// package) as [commit] has it, or null when it has none.
+  Future<List<int>?> committedImage(String commit, String path);
 
   /// The goldens matching [pathspec] this branch changed, relative to the
   /// package, sorted.
@@ -71,6 +75,9 @@ final class FallbackSession extends GoldensSession {
 
   @override
   Future<List<String>> goldens(String pathspec) async => const [];
+
+  @override
+  Future<List<int>?> committedImage(String commit, String path) async => null;
 
   @override
   Future<List<String>> changedByBranch(String pathspec) async => const [];
@@ -169,17 +176,19 @@ final class ActiveSession extends GoldensSession {
   @override
   Future<Map<String, List<String>>> missing(String pathspec) async {
     final byCommit = <String, List<String>>{};
-    Future<void> need(String golden, {String? at}) async {
+    Future<void> need(String golden, String inPackage, {String? at}) async {
       final commit = await repo.lastCommitOf(golden, at: at);
-      final inPackage = repo.location.packagePath(golden);
-      if (commit == null || inPackage == null) return;
+      if (commit == null) return;
       if (store.at(commit, _unit).baseline(inPackage) != null) return;
-      (byCommit[commit] ??= []).add(golden);
+      final paths = byCommit[commit] ??= [];
+      if (!paths.contains(inPackage)) paths.add(inPackage);
     }
 
-    for (final golden in await goldens(pathspec)) {
-      if (!dirty.contains(golden)) await need(golden);
-      if (changed.contains(golden)) await need(golden, at: base);
+    for (final golden in await _tracked(pathspec)) {
+      final inPackage = repo.location.packagePath(golden);
+      if (inPackage == null) continue;
+      if (!dirty.contains(golden)) await need(golden, inPackage);
+      if (changed.contains(golden)) await need(golden, inPackage, at: base);
     }
     return byCommit;
   }
@@ -229,7 +238,19 @@ final class ActiveSession extends GoldensSession {
       .fill((into) => builder.build(commit, into));
 
   @override
-  Future<List<String>> goldens(String pathspec) =>
+  Future<List<String>> goldens(String pathspec) async => [
+    for (final golden in await _tracked(pathspec))
+      ?repo.location.packagePath(golden),
+  ];
+
+  @override
+  Future<List<int>?> committedImage(String commit, String path) async {
+    final relative = repo.location.repoPathOf(path);
+    return relative == null ? null : await repo.show(commit, relative);
+  }
+
+  // The tracked goldens matching [pathspec], repo-relative, as git asks.
+  Future<List<String>> _tracked(String pathspec) =>
       repo.trackedFiles(repo.location.pathspec(pathspec));
 
   @override
