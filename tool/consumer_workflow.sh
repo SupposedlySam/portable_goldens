@@ -15,6 +15,11 @@
 # this checkout from outside its repository, so the baseline build also
 # exercises the generated pubspec_overrides.yaml.
 #
+# The widget imports a generated file that git ignores, as code from
+# build_runner would be, so a baseline compiles only if the
+# `portable_goldens: setup:` step in the consumer's pubspec runs, with the
+# SDK's `dart` on its PATH, before the tests.
+#
 # What it does not cover: a second machine (the cross-machine claim is the
 # key's, and needs two machines), Git LFS, submodules, and a shallow clone.
 set -euo pipefail
@@ -43,9 +48,22 @@ dev_dependencies:
     sdk: flutter
   portable_goldens:
     path: $package
+portable_goldens:
+  setup:
+    - dart run tool/generate.dart
+EOF
+mkdir -p "$consumer/tool"
+cat > "$consumer/tool/generate.dart" <<'EOF'
+import 'dart:io';
+
+void main() => File('lib/dot_shape.g.dart').writeAsStringSync(
+  "import 'package:flutter/widgets.dart';\n\nconst dotShape = BoxShape.circle;\n",
+);
 EOF
 cat > "$consumer/lib/dot.dart" <<'EOF'
 import 'package:flutter/widgets.dart';
+
+import 'dot_shape.g.dart';
 
 const dotColor = Color(0xFF2196F3);
 
@@ -54,7 +72,7 @@ class Dot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const DecoratedBox(
-    decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+    decoration: BoxDecoration(color: dotColor, shape: dotShape),
   );
 }
 EOF
@@ -80,7 +98,7 @@ void main() {
 }
 EOF
 cp "$package/example/flutter_test_config.dart" "$consumer/test/"
-printf '.dart_tool/\nbuild/\npubspec.lock\n' > "$consumer/.gitignore"
+printf '.dart_tool/\nbuild/\npubspec.lock\n*.g.dart\n' > "$consumer/.gitignore"
 
 cd "$consumer"
 git init --quiet
@@ -88,6 +106,9 @@ git config user.email consumer@example.com
 git config user.name Consumer
 git config commit.gpgsign false
 flutter pub get
+dart run tool/generate.dart
+git check-ignore --quiet lib/dot_shape.g.dart ||
+  fail 'git does not ignore the generated file, so the setup step proves nothing'
 git add -A
 git commit --quiet -m 'a dot'
 
@@ -99,6 +120,8 @@ git commit --quiet -m 'the golden'
 
 step 'prepare'
 dart run portable_goldens:prepare || fail 'prepare'
+compgen -G "$PORTABLE_GOLDENS_CACHE/*/*/root@*/test/goldens/dot.png" > /dev/null ||
+  fail 'no baseline was built under a unit named for the setup step'
 
 step 'flutter test'
 flutter test > "$work/test.txt" 2>&1 || { cat "$work/test.txt"; fail 'flutter test'; }
