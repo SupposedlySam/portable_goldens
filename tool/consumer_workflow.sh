@@ -24,11 +24,19 @@
 # key's, and needs two machines), Git LFS, submodules, and a shallow clone.
 set -euo pipefail
 
+# A path as the Dart tools read it. Git Bash on Windows writes `/d/a/...`,
+# which only its own programs understand; `cygpath -m` gives `D:/a/...`,
+# which both sides do. Elsewhere a path is already that.
+native() {
+  if command -v cygpath > /dev/null; then cygpath -m "$1"; else printf '%s' "$1"; fi
+}
+
 package="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/portable_goldens_consumer.XXXXXX")"
 trap 'rm -rf -- "$work"' EXIT
 consumer="$work/consumer"
-export PORTABLE_GOLDENS_CACHE="$work/cache"
+cache="$work/cache"
+export PORTABLE_GOLDENS_CACHE="$(native "$cache")"
 
 step() { printf '\n==> %s\n' "$*"; }
 fail() { printf '\nconsumer workflow FAILED: %s\n' "$*" >&2; exit 1; }
@@ -47,7 +55,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   portable_goldens:
-    path: $package
+    path: $(native "$package")
 portable_goldens:
   setup:
     - dart run tool/generate.dart
@@ -120,7 +128,7 @@ git commit --quiet -m 'the golden'
 
 step 'prepare'
 dart run portable_goldens:prepare || fail 'prepare'
-compgen -G "$PORTABLE_GOLDENS_CACHE/*/*/root@*/test/goldens/dot.png" > /dev/null ||
+compgen -G "$cache/*/*/root@*/test/goldens/dot.png" > /dev/null ||
   fail 'no baseline was built under a unit named for the setup step'
 
 step 'flutter test'
