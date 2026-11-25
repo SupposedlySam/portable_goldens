@@ -18,6 +18,8 @@ export 'src/report/report_entry.dart' show GoldenOutcome, ReportEntry;
 export 'src/report/test_run.dart' show currentRun;
 export 'src/report/work_summary.dart' show ChangedGolden, WorkSummary;
 export 'src/session/branch_change.dart' show BranchChange;
+export 'src/session/fallback_reason.dart'
+    show CheckoutFailed, FallbackReason, GoldenFallback, SessionFallback;
 export 'src/session/golden_baseline.dart'
     show
         CommittedBaseline,

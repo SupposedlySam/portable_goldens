@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portable_goldens/portable_goldens.dart';
+import 'package:portable_goldens/src/compare/notices.dart';
 
 import 'support/repo.dart';
 
@@ -53,6 +54,7 @@ void main() {
   PortableGoldenComparator comparator({
     FakeFlutter? flutter,
     String? packageDir,
+    Map<String, String> environment = const {'FLUTTER_ROOT': '/fake/flutter'},
   }) {
     final dir = packageDir ?? repo.dir;
     final fake =
@@ -65,7 +67,7 @@ void main() {
       Uri.file('$dir/test/a_test.dart'),
       goldens: MachineGoldens(
         packageDir: dir,
-        environment: const {'FLUTTER_ROOT': '/fake/flutter'},
+        environment: environment,
         key: fakeKey(),
         cacheRoot: cache.path,
         runProcess: fake.call,
@@ -328,5 +330,53 @@ void main() {
       entry.diffs,
       contains('${plain.path}/test/failures/a_isolatedDiff.png'),
     );
+  });
+
+  group('the notice of a committed-image compare', () {
+    late Notices processNotices;
+    late StringBuffer said;
+
+    setUp(() {
+      processNotices = Notices.process;
+      said = StringBuffer();
+      Notices.process = Notices(said);
+    });
+
+    tearDown(() => Notices.process = processNotices);
+
+    test('is not said inside a build, which compares with the committed '
+        'image by design', () async {
+      final flutter = FakeFlutter();
+      final child = comparator(
+        flutter: flutter,
+        environment: const {
+          'FLUTTER_ROOT': '/fake/flutter',
+          childEnvironmentVariable: '1',
+        },
+      );
+
+      expect(await child.compare(committed, golden), isTrue);
+      expect(flutter.testRuns, isEmpty);
+      expect('$said', isEmpty);
+    });
+
+    test('is said once, with its reason, anywhere else', () async {
+      final plain = Directory.systemTemp.createTempSync(
+        'portable_goldens_plain',
+      );
+      addTearDown(() => plain.deleteSync(recursive: true));
+      File('${plain.path}/test/goldens/a.png')
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(committed);
+      final machine = comparator(packageDir: plain.path);
+
+      expect(await machine.compare(committed, golden), isTrue);
+      expect(await machine.compare(committed, golden), isTrue);
+      expect(
+        '$said',
+        'portable_goldens: comparing with the committed images, because '
+            'the package is not in a git repository.\n',
+      );
+    });
   });
 }

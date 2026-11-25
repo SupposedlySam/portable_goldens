@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:portable_goldens/src/session/fallback_reason.dart';
+
 /// What one golden is compared against.
 sealed class GoldenBaseline {
   const new();
@@ -36,6 +38,6 @@ final class CommittedBaseline extends GoldenBaseline {
   /// Machine baselines do not apply, for [reason].
   const new(this.reason);
 
-  /// Why, in a phrase.
-  final String reason;
+  /// Why.
+  final FallbackReason reason;
 }

@@ -73,7 +73,7 @@ final class GoldenVerifier {
     }
     switch (baseline) {
       case CommittedBaseline(:final reason):
-        return _Checked(Unverifiable(golden, reason));
+        return _Checked(Unverifiable(golden, reason.phrase));
       case WorkingTreeBaseline():
         // baselineAtHead never answers this; said rather than assumed.
         return _Checked(

@@ -324,11 +324,14 @@ once per test process:
 - there is no git, or the package is outside a repository;
 - the clone is shallow: its history stops at a boundary commit, `git log -1` names that commit for
   every png older than it, and its render is not what the png showed;
-- no commit has the png;
+- the repository has no commit yet;
+- no Flutter SDK can be found, or its engine or framework revision cannot, because an SDK update
+  would then go unnoticed;
+- the png is outside the package, or no commit has it;
 - the commit cannot be checked out;
-- the Flutter engine or framework revision cannot be found, because an SDK update would then go
-  unnoticed;
-- the test runs inside a baseline build.
+- the test runs inside a baseline build. This one is the design, so it is never printed.
+
+In code, `CommittedBaseline.reason` is a sealed `FallbackReason` to switch on.
 
 ### The machine key
 

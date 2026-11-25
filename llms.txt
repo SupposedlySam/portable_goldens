@@ -84,9 +84,12 @@ submodules, `flutter pub get` or golden tests failed with today's SDK. The messa
 to paste into a shell, and the end of its output. The usual fix: re-render that golden on the
 current branch and commit it, which moves its baseline to a commit that builds.
 
-Fallback reasons, printed once per test process: no git; package outside a repository; shallow
-clone; no commit has the png; the commit cannot be checked out; the Flutter engine or framework
-revision cannot be found; running inside a baseline build.
+Fallback reasons, printed once per test process. For the whole process (`SessionFallback`): no git
+repository around the package; a shallow clone; a repository with no commit; no Flutter SDK; its
+engine or framework revision cannot be found; the run is itself a baseline build (the one reason
+never printed). For one golden (`GoldenFallback`, `CheckoutFailed`): the png is outside the
+repository or the package; no commit has it; its commit cannot be checked out.
+`CommittedBaseline.reason` is a sealed `FallbackReason`, so code can switch on it.
 
 ## Facts that are easy to get wrong
 

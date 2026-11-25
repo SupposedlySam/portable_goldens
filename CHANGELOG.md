@@ -12,6 +12,8 @@
   compare `matchesGoldenFile` uses, and keeps the images of a mismatch. `--all` checks every
   tracked golden; `--json` writes the checks for tools. A failure against this machine's baseline
   points at it.
+- A golden compared with its committed image says why with a typed `FallbackReason`
+  (`SessionFallback`, `GoldenFallback`, `CheckoutFailed`), which prints as a phrase.
 - `prune` removes the baselines nobody needs: ones unused for 30 days (`--older-than`), in any
   repository and under any machine key, and ones of commits no branch, tag or checkout of the
   repository has, once unused for a day. A commit the repository does not have goes by age alone,

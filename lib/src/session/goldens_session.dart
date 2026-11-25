@@ -6,6 +6,7 @@ import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/git_repo.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/session/branch_change.dart';
+import 'package:portable_goldens/src/session/fallback_reason.dart';
 import 'package:portable_goldens/src/session/golden_baseline.dart';
 import 'package:portable_goldens/src/store/baseline_store.dart';
 import 'package:portable_goldens/src/store/build_failure.dart';
@@ -54,7 +55,7 @@ sealed class GoldensSession {
   Directory? get machineDir;
 
   /// Why machine baselines are not used, or null when they are.
-  String? get fallbackReason;
+  SessionFallback? get fallbackReason;
 }
 
 /// Machine baselines do not apply: every golden is compared with its
@@ -63,8 +64,8 @@ final class FallbackSession extends GoldensSession {
   /// Machine baselines do not apply, for [reason].
   const new(this.reason);
 
-  /// Why, in a phrase.
-  final String reason;
+  /// Why.
+  final SessionFallback reason;
 
   @override
   Future<GoldenBaseline> baselineFor(String path) async =>
@@ -100,7 +101,7 @@ final class FallbackSession extends GoldensSession {
   Directory? get machineDir => null;
 
   @override
-  String get fallbackReason => reason;
+  SessionFallback get fallbackReason => reason;
 }
 
 /// Machine baselines apply: a package in a full clone, on a machine whose
@@ -143,7 +144,7 @@ final class ActiveSession extends GoldensSession {
   Directory get machineDir => store.machineDir;
 
   @override
-  String? get fallbackReason => null;
+  SessionFallback? get fallbackReason => null;
 
   /// Throws [BuildFailure] when the baseline had to be built and the build
   /// failed, or ran and did not render this golden.
@@ -163,23 +164,23 @@ final class ActiveSession extends GoldensSession {
   }) async {
     final relative = repo.location.repoPathOf(path);
     if (relative == null) {
-      return const CommittedBaseline('the golden is outside the repository');
+      return const CommittedBaseline(GoldenFallback.outsideRepository);
     }
     final inPackage = repo.location.packagePath(relative);
     if (inPackage == null) {
-      return const CommittedBaseline('the golden is outside the package');
+      return const CommittedBaseline(GoldenFallback.outsidePackage);
     }
     if (workingTree && dirty.contains(relative)) {
       return const WorkingTreeBaseline();
     }
     final commit = await repo.lastCommitOf(relative);
     if (commit == null) {
-      return const CommittedBaseline('no commit has the golden');
+      return const CommittedBaseline(GoldenFallback.uncommitted);
     }
     try {
       await build(commit);
     } on CheckoutUnavailable catch (unavailable) {
-      return CommittedBaseline('$unavailable');
+      return CommittedBaseline(CheckoutFailed(unavailable));
     }
     final baselines = store.at(commit, _unit);
     if (baselines.baseline(inPackage) case final file?) {

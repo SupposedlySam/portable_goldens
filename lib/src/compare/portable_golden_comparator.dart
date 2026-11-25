@@ -8,6 +8,7 @@ import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/report/golden_report.dart';
 import 'package:portable_goldens/src/report/report_entry.dart';
+import 'package:portable_goldens/src/session/fallback_reason.dart';
 import 'package:portable_goldens/src/session/golden_baseline.dart';
 import 'package:portable_goldens/src/session/machine_goldens.dart';
 import 'package:portable_goldens/src/store/build_failure.dart';
@@ -145,8 +146,10 @@ final class PortableGoldenComparator extends LocalFileComparator {
     return true;
   }
 
-  Future<List<int>> _committed(Uri golden, String reason) {
-    if (!reason.contains('itself building')) {
+  // A build's own run compares with the committed images by design, so it
+  // says nothing; any other reason is news, said once per process.
+  Future<List<int>> _committed(Uri golden, FallbackReason reason) {
+    if (reason != SessionFallback.buildingBaselines) {
       Notices.process.once(
         'comparing with the committed images, because $reason.',
       );

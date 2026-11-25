@@ -113,7 +113,14 @@ void main() {
       environment: {childEnvironmentVariable: '1'},
     ).baselineFor('test/goldens/a.png');
 
-    expect(baseline, isA<CommittedBaseline>());
+    expect(
+      baseline,
+      isA<CommittedBaseline>().having(
+        (c) => c.reason,
+        'reason',
+        SessionFallback.buildingBaselines,
+      ),
+    );
     expect(flutter.testRuns, isEmpty);
   });
 
@@ -474,7 +481,7 @@ void main() {
       isA<CommittedBaseline>().having(
         (c) => c.reason,
         'reason',
-        'the golden is outside the package',
+        GoldenFallback.outsidePackage,
       ),
     );
     expect(flutter.testRuns, isEmpty);
@@ -524,7 +531,11 @@ void main() {
       isA<CommittedBaseline>().having(
         (c) => c.reason,
         'reason',
-        contains('could not be checked out'),
+        isA<CheckoutFailed>().having(
+          (c) => c.phrase,
+          'phrase',
+          contains('could not be checked out'),
+        ),
       ),
     );
   });
@@ -571,7 +582,7 @@ void main() {
         isA<CommittedBaseline>().having(
           (c) => c.reason,
           'reason',
-          contains('the clone is shallow'),
+          SessionFallback.shallowClone,
         ),
       );
       expect(flutter.testRuns, isEmpty);
@@ -595,7 +606,14 @@ void main() {
         runProcess: flutter.call,
       ).baselineFor('test/goldens/a.png');
 
-      expect(baseline, isA<CommittedBaseline>());
+      expect(
+        baseline,
+        isA<CommittedBaseline>().having(
+          (c) => c.reason,
+          'reason',
+          SessionFallback.notInRepository,
+        ),
+      );
       expect(flutter.testRuns, isEmpty);
     },
   );

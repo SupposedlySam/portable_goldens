@@ -7,6 +7,7 @@ import 'package:portable_goldens/src/machine/flutter_sdk.dart';
 import 'package:portable_goldens/src/machine/machine_key.dart';
 import 'package:portable_goldens/src/process/process_runner.dart';
 import 'package:portable_goldens/src/session/branch_change.dart';
+import 'package:portable_goldens/src/session/fallback_reason.dart';
 import 'package:portable_goldens/src/session/golden_baseline.dart';
 import 'package:portable_goldens/src/session/goldens_session.dart';
 import 'package:portable_goldens/src/store/baseline_store.dart';
@@ -115,41 +116,33 @@ final class MachineGoldens {
   Future<Directory?> get machineDir => _session.then((s) => s.machineDir);
 
   /// Why machine baselines are not used, or null when they are.
-  Future<String?> get fallbackReason => _session.then((s) => s.fallbackReason);
+  Future<SessionFallback?> get fallbackReason =>
+      _session.then((s) => s.fallbackReason);
 
   Future<GoldensSession> _open() async {
     if (environment[childEnvironmentVariable] == '1') {
-      return const FallbackSession('this run is itself building baselines');
+      return const FallbackSession(SessionFallback.buildingBaselines);
     }
     final key = this.key;
     if (!key.isComplete) {
-      // Without the engine and framework in the key, an update would reuse
-      // baselines it did not render.
-      return const FallbackSession(
-        "the Flutter SDK's engine or framework revision could not be found",
-      );
+      return const FallbackSession(SessionFallback.sdkRevisionUnknown);
     }
     final sdk = FlutterSdk.current(environment: environment);
     if (sdk == null) {
-      return const FallbackSession('the Flutter SDK could not be found');
+      return const FallbackSession(SessionFallback.sdkNotFound);
     }
     final repo = await GitRepo.open(packageDir, runProcess: _runProcess);
     if (repo == null) {
-      return const FallbackSession('the package is not in a git repository');
+      return const FallbackSession(SessionFallback.notInRepository);
     }
     if (await repo.isShallow()) {
-      // The boundary commit would pass for the commit that last changed
-      // every older golden, and its render is not what any of them showed.
-      return const FallbackSession(
-        'the clone is shallow, so the commit that last changed a golden '
-        'cannot be found',
-      );
+      return const FallbackSession(SessionFallback.shallowClone);
     }
     final base = await repo.branchBase(
       baseRef: environment[baseEnvironmentVariable],
     );
     if (base == null) {
-      return const FallbackSession('the repository has no commit yet');
+      return const FallbackSession(SessionFallback.noCommit);
     }
     final root = _cacheRoot ?? defaultCacheRoot(environment: environment);
     return ActiveSession(
