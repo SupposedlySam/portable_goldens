@@ -39,6 +39,8 @@ What follows from that:
 - **One set of pngs.** Nothing per platform, nothing per developer, nothing extra committed.
 - **An OS, engine or Flutter upgrade does not churn the goldens.** The new environment gets its
   own baselines, rendered from the same commits, so only a change in *your* code fails a test.
+  That holds while those commits still build and pass on the new SDK; one that does not fails
+  its goldens loudly, naming the build (see [Limits](#limits)).
 - **A dependency upgrade that moves pixels is caught**, when the package commits its
   `pubspec.lock`: the baseline renders with the old commit's lock, the test with the new one.
 - **Every worktree and clone on a machine shares one cache**, so a commit is rendered once per
@@ -213,6 +215,46 @@ pathspec relative to the package. The default is `**/goldens/**/*.png`. Run them
 package's root. Every command takes `--help`, which prints its usage. An option a command does
 not take exits 64, with the usage, as does a value it cannot use (`--older-than 0`, say). Inside a
 baseline build every command refuses and exits 1, since it would build from within a build.
+
+## Working with git
+
+A baseline is named by a commit's sha, so what git does to commits is what the package sees.
+
+**Harmless: a rebuild at most.**
+
+- **Rebase, amend, squash, cherry-pick.** The commits get new shas, so a golden whose png is in
+  one of them gets a baseline built for the new sha the first time a test needs it. The old
+  commit's baselines are unreachable now, and `prune` removes them a day later.
+- **Merging,** either way. A png the merge did not change keeps its commit, and its baseline.
+- **Switching branches, worktrees and clones.** They share one cache on a machine, so a commit is
+  built once.
+- **Force-pushing.** Other machines see the new shas and build them, as for a rebase.
+
+**Failures that are right.**
+
+- **A merge, rebase or dependency upgrade that changes what a widget draws** fails its golden,
+  against the render of the png's commit, until someone re-renders the png, looks at it and
+  commits it. That is the regression check working.
+- **Uncommitted code that moves pixels** fails the same way: the baseline is the committed png's
+  commit, never your working tree.
+
+**What breaks, and what the package does about it.**
+
+- **A png committed ahead of its code, or apart from it.** Re-rendering, then changing the code
+  again before committing; `git add -p`; a rebase that splits a commit. No commit draws that png,
+  and the tests pass on every machine all the same, because they compare with the commit's
+  render. `verify` catches it, on the machine that rendered the png. Run it before pushing.
+- **Inputs the commit does not track.** A build's checkout has only what the commit has, so an
+  untracked asset or font, or generated code that is ignored, is missing there: the build fails
+  with its output, or draws without it. Commit what the goldens need.
+- **Path dependencies outside the repository** are given to the build as they are on disk now, not
+  as they were at the commit ([Limits](#limits)).
+- **Submodules** are checked out at the commit's sha, cloned from their URLs, so a build needs
+  those URLs to be reachable.
+- **Git LFS** needs `git lfs` installed and the objects fetched. A pointer is never compared as an
+  image ([Git LFS](#git-lfs)).
+- **A shallow clone** falls back to the committed images ([Fallbacks](#fallbacks)). Fetch full
+  history wherever goldens run.
 
 ## In CI
 

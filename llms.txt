@@ -94,8 +94,13 @@ revision cannot be found; running inside a baseline build.
   HEAD, and is rendered by that commit's own tests.
 - `--update-goldens` writes the committed png only. It never writes the machine cache.
 - After an OS, engine, framework or Dart update, the machine key changes and every baseline is
-  rebuilt, so an SDK upgrade does not fail goldens. A pixel change from the SDK itself is not
-  reported as a failure: the baseline and the test render with the same SDK.
+  rebuilt, so an SDK upgrade does not fail goldens, as long as each commit still builds and
+  passes on the new SDK. A pixel change from the SDK itself is not reported as a failure: the
+  baseline and the test render with the same SDK.
+- Rebase, amend and squash give commits new shas: their goldens' baselines are rebuilt, never
+  wrong. What git cannot fix for you: a png committed ahead of or apart from its code (`verify`
+  catches it), and inputs the commit does not track (untracked assets, ignored generated code),
+  which the build's checkout lacks.
 - The tests never check that a committed png matches its own commit's code, so a stale png
   passes them. Only `verify` checks it, on the machine that rendered the png.
 - The cache lives outside the repository (macOS `~/Library/Caches/portable_goldens`, Linux
