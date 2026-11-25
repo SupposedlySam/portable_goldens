@@ -215,3 +215,8 @@ Future<ProcessResult> testGit(
   includeParentEnvironment: includeParentEnvironment,
   stdoutEncoding: stdoutEncoding,
 );
+
+/// [path], written with `/`, as this platform writes it: with `\` on Windows,
+/// where `File.path` and Flutter's failure images use that separator.
+String nativePath(String path) =>
+    Platform.isWindows ? path.replaceAll('/', r'\') : path;

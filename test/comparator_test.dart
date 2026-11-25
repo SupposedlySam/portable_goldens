@@ -116,7 +116,9 @@ void main() {
         ),
       ),
     );
-    final diff = File('${repo.dir}/test/failures/a_isolatedDiff.png');
+    final diff = File(
+      nativePath('${repo.dir}/test/failures/a_isolatedDiff.png'),
+    );
     expect(diff.existsSync(), isTrue);
     final entry = machine.report.read().single;
     expect(entry.golden, 'test/goldens/a.png');
@@ -177,7 +179,9 @@ void main() {
       );
       expect(
         entry.diffs,
-        contains('${repo.dir}/test/failures/a_isolatedDiff_branch.png'),
+        contains(
+          nativePath('${repo.dir}/test/failures/a_isolatedDiff_branch.png'),
+        ),
       );
       expect(File(entry.diffs.first).existsSync(), isTrue);
     });
@@ -328,7 +332,7 @@ void main() {
     expect(entry.baseline, contains('the committed image'));
     expect(
       entry.diffs,
-      contains('${plain.path}/test/failures/a_isolatedDiff.png'),
+      contains(nativePath('${plain.path}/test/failures/a_isolatedDiff.png')),
     );
   });
 

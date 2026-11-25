@@ -6,11 +6,18 @@ import 'package:portable_goldens/src/git/package_location.dart';
 import 'package:portable_goldens/src/git/path_style.dart';
 import 'package:portable_goldens/src/machine/flutter_sdk.dart';
 
+import 'support/repo.dart';
+
 // The resolutions here are real: each fixture is resolved by `dart pub get
 // --offline`, so the package_config.json read is the one pub writes, not one
 // written to match the reader.
 // A folder name that YAML, unquoted, would read as a comment and a mapping.
-const farFolder = "far/it's #1: here";
+// Windows refuses a `:` in a name (errno 267, CI 2026-11-25), so there it
+// is only a comment, and the mapping goes unchecked; its own paths' `\`
+// and drive's `:` are checked instead.
+final farFolder = Platform.isWindows
+    ? "far/it's #1, here"
+    : "far/it's #1: here";
 
 void main() {
   late String outer;
@@ -76,7 +83,9 @@ void main() {
           '  shared:\n    path: ../shared\n'
           '  near:\n    path: ../../near\n'
           '  far:\n    path: "../../$farFolder"\n'
-          '  absolute:\n    path: "$outer/absolute"\n',
+          // Single-quoted: in double quotes, YAML reads a Windows path's
+          // `\U` as an escape.
+          "  absolute:\n    path: '$outer/absolute'\n",
     );
     await pubGet('repo/app');
   }
@@ -90,8 +99,8 @@ void main() {
     expect(overrides.root, 'app/');
     expect(overrides.unread, isNull);
     expect(overrides.packages, {
-      'far': '$outer/$farFolder',
-      'near': '$outer/near',
+      'far': nativePath('$outer/$farFolder'),
+      'near': nativePath('$outer/near'),
     });
     expect(overrides.packages.keys, ['far', 'near'], reason: 'name order');
   });
@@ -115,7 +124,7 @@ void main() {
     final config = File(
       '$outer/a/b/checkout/app/.dart_tool/package_config.json',
     ).readAsStringSync();
-    expect(config, contains('"rootUri": "file://$outer/near"'));
+    expect(config, contains('"rootUri": "${Uri.file('$outer/near')}'));
     expect(config, contains('"rootUri": "${Uri.file('$outer/$farFolder')}'));
     expect(config, contains('"rootUri": "../../shared"'));
   });
@@ -137,7 +146,7 @@ void main() {
     final overrides = PathOverrides.of(at('repo', 'packages/app/'));
 
     expect(overrides.root, '');
-    expect(overrides.packages, {'dep': '$outer/dep'});
+    expect(overrides.packages, {'dep': nativePath('$outer/dep')});
     Directory('$outer/checkout').createSync();
     expect(
       overrides.writeInto('$outer/checkout'),

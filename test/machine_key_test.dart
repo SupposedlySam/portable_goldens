@@ -138,7 +138,7 @@ void main() {
     final exe = Platform.resolvedExecutable;
     expect(
       FlutterSdk.current(environment: const {})?.root,
-      exe.substring(0, exe.lastIndexOf('/bin/cache/')),
+      exe.substring(0, exe.lastIndexOf(nativePath('/bin/cache/'))),
     );
   });
 }

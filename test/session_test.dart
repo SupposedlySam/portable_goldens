@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portable_goldens/baselines.dart';
+import 'package:portable_goldens/src/process/shell.dart';
 
 import 'support/repo.dart';
 
@@ -476,8 +478,13 @@ void main() {
 
       await session(flutter).baselineFor('test/goldens/a.png');
 
-      final design = '${Directory(repo.dir).parent.path}/design';
-      expect(seen.single, contains('  design:\n    path: "$design"\n'));
+      // A JSON string, which YAML reads as it is: a Windows path's `\` comes
+      // out doubled.
+      final design = nativePath('${Directory(repo.dir).parent.path}/design');
+      expect(
+        seen.single,
+        contains('  design:\n    path: ${jsonEncode(design)}\n'),
+      );
       expect(seen.single, isNot(contains('fixture')));
       expect(
         BaselineStore.open(cache.path, fakeKey()).at(head, 'root').command,
@@ -661,7 +668,13 @@ void main() {
   );
 
   group("the package's setup steps", () {
-    const generate = 'printf generated > gen.txt';
+    // Steps that sh and cmd both run as written: a step runs in the OS's
+    // own shell, which is cmd on Windows, where `printf` is not a command
+    // (CI, 2026-11-25).
+    const generate = 'echo generated> gen.txt';
+    const fail = 'echo broke 1>&2 && exit 3';
+    final sdkBin = const FlutterSdk('/fake/flutter').bin;
+    final pathSeparator = Platform.isWindows ? ';' : ':';
 
     void configure(List<String> steps) => repo.write(
       'pubspec.yaml',
@@ -679,7 +692,8 @@ void main() {
         onFlutter: (args, folder) {
           if (args.first == 'test') {
             generatedBeforeTests =
-                File('$folder/gen.txt').readAsStringSync() == 'generated';
+                File('$folder/gen.txt').readAsStringSync().trim() ==
+                'generated';
           }
         },
       );
@@ -697,7 +711,7 @@ void main() {
       expect(generatedBeforeTests, isTrue);
       final step = flutter.shellRuns.single;
       expect(step.dir, flutter.testRuns.single.dir);
-      expect(step.env['PATH'], '/fake/flutter/bin:/usr/bin:/bin');
+      expect(step.env['PATH'], '$sdkBin$pathSeparator/usr/bin:/bin');
       expect(step.env[childEnvironmentVariable], '1');
       expect(flutter.testRuns.single.env['PATH'], step.env['PATH']);
       expect(
@@ -708,7 +722,7 @@ void main() {
 
     test('a step that fails fails the build, naming the step, and no test '
         'runs', () async {
-      configure([generate, 'echo broke >&2; exit 3']);
+      configure([generate, fail]);
       final flutter = FakeFlutter();
 
       await expectLater(
@@ -718,7 +732,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'setup step `echo broke >&2; exit 3` (from '
+                'setup step `$fail` (from '
                     '`portable_goldens: setup:` in pubspec.yaml) exited 3',
               )
               .having((f) => f.output, 'output', contains('broke'))
@@ -726,8 +740,8 @@ void main() {
                 (f) => f.command,
                 'command',
                 contains(
-                  r'flutter pub get && export PATH="/fake/flutter/bin:$PATH" '
-                  '&& $generate && echo broke >&2; exit 3 && ',
+                  'pub get && ${Shell.current.firstOnPathCommand(sdkBin)} '
+                  '&& $generate && $fail && ',
                 ),
               ),
         ),
