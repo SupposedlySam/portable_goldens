@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:portable_goldens/src/git/path_style.dart';
+
 /// The test files of a package that make goldens, found by a marker in their
 /// source.
 final class GoldenTestFiles {
@@ -16,7 +18,7 @@ final class GoldenTestFiles {
   /// The package-relative paths to hand `flutter test`: the files under
   /// `test/` whose source contains [marker], or all of `test/` when none
   /// does, which is slower but finds goldens made some other way. Empty when
-  /// the package has no `test/`.
+  /// the package has no `test/`. Segments are joined by `/` on every OS.
   List<String> get arguments {
     final tests = Directory('${packageDir}test');
     if (!tests.existsSync()) return const [];
@@ -25,7 +27,7 @@ final class GoldenTestFiles {
         if (entity is File &&
             entity.path.endsWith('_test.dart') &&
             entity.readAsStringSync().contains(marker))
-          entity.path.substring(packageDir.length),
+          ?PathStyle.current.relative(packageDir, entity.path),
     ];
     return found.isEmpty ? const ['test'] : (found..sort());
   }

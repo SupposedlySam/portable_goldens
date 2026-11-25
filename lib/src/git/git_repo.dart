@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/package_location.dart';
+import 'package:portable_goldens/src/git/path_style.dart';
 import 'package:portable_goldens/src/process/process_runner.dart';
 
 /// Every question this package asks git, for one package in one repository.
@@ -24,7 +25,12 @@ final class GitRepo {
     final prefix = await ask(['rev-parse', '--show-prefix']);
     if (top == null || prefix == null) return null;
     return GitRepo._(
-      PackageLocation(topLevel: top, prefix: prefix, packageDir: packageDir),
+      PackageLocation(
+        topLevel: top,
+        prefix: prefix,
+        packageDir: packageDir,
+        style: PathStyle.current,
+      ),
       runProcess,
     );
   }

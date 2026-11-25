@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:portable_goldens/src/git/path_style.dart';
+
 /// Where a package sits in its git repository, and the conversions between
 /// the three ways a path is written: absolute, relative to the repository's
 /// top level (as git prints it), and relative to the package (as the tests
@@ -8,11 +10,13 @@ import 'dart:io';
 /// Every path this package hands git, or reads from it, goes through here, so
 /// the arithmetic is written once.
 final class PackageLocation {
-  /// The package at [packageDir], [prefix] below [topLevel].
+  /// The package at [packageDir], [prefix] below [topLevel], on an OS that
+  /// writes paths in [style].
   const new({
     required this.topLevel,
     required this.prefix,
     required this.packageDir,
+    required this.style,
   });
 
   /// The working tree's top level.
@@ -24,6 +28,10 @@ final class PackageLocation {
 
   /// The package's folder, as it was given.
   final String packageDir;
+
+  /// How this OS writes paths: git prints `C:/repo` where the file API
+  /// returns `C:\repo`.
+  final PathStyle style;
 
   /// The package's name in the cache: its folder in the repository, `root`
   /// at the top. Two packages of one monorepo never share a commit's folder.
@@ -58,24 +66,24 @@ final class PackageLocation {
   // [path] relative to the top level, empty for the top level itself; null
   // when it is outside.
   String? _fromTop(String path) {
-    final absolute = _isAbsolute(path) ? path : '$packageDir/$path';
-    final real = _real(absolute);
-    final realTop = _real(topLevel);
-    if (real == realTop) return '';
-    if (!real.startsWith('$realTop/')) return null;
-    return real.substring(realTop.length + 1);
+    final absolute = style.isAbsolute(path) ? path : '$packageDir/$path';
+    return style.relative(_real(topLevel), _real(absolute));
   }
-}
 
-bool _isAbsolute(String path) => path.startsWith('/') || path.contains(r':\');
-
-// The path with symbolic links resolved, for a file that may not exist yet.
-String _real(String path) {
-  final file = File(path);
-  if (file.existsSync()) return file.resolveSymbolicLinksSync();
-  final dir = Directory(path);
-  if (dir.existsSync()) return dir.resolveSymbolicLinksSync();
-  final cut = path.lastIndexOf('/');
-  if (cut <= 0) return path;
-  return '${_real(path.substring(0, cut))}${path.substring(cut)}';
+  // The path with symbolic links resolved, for a file that may not exist
+  // yet, with `/` between segments.
+  String _real(String path) {
+    final portable = style.portable(path);
+    for (final entity in [File(portable), Directory(portable)]) {
+      if (entity.existsSync()) {
+        return style.portable(entity.resolveSymbolicLinksSync());
+      }
+    }
+    final cut = portable.lastIndexOf('/');
+    if (cut <= 0) return portable;
+    final parent = portable.substring(0, cut);
+    // `C:` alone is the current folder on drive C, not its root.
+    if (style == PathStyle.windows && parent.endsWith(':')) return portable;
+    return '${_real(parent)}${portable.substring(cut)}';
+  }
 }

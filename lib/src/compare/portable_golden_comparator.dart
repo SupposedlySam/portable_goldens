@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:portable_goldens/src/compare/notices.dart';
 import 'package:portable_goldens/src/git/committed_file.dart';
+import 'package:portable_goldens/src/git/path_style.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/report/golden_report.dart';
 import 'package:portable_goldens/src/report/report_entry.dart';
@@ -208,9 +209,14 @@ final class PortableGoldenComparator extends LocalFileComparator {
   String _goldenPath(Uri golden) =>
       File.fromUri(basedir.resolveUri(Uri(path: golden.path))).path;
 
+  // The golden as the report names it: relative to the package when it is
+  // inside, with `/` between segments on every OS.
   String _inPackage(String path) {
-    final dir = goldens.packageDir;
-    return path.startsWith('$dir/') ? path.substring(dir.length + 1) : path;
+    final style = PathStyle.current;
+    return switch (style.relative(goldens.packageDir, path)) {
+      final relative? when relative.isNotEmpty => relative,
+      _ => style.portable(path),
+    };
   }
 
   List<String> _failureFiles(

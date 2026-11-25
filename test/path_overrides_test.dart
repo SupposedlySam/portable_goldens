@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portable_goldens/src/build/path_overrides.dart';
 import 'package:portable_goldens/src/git/package_location.dart';
+import 'package:portable_goldens/src/git/path_style.dart';
 import 'package:portable_goldens/src/machine/flutter_sdk.dart';
 
 // The resolutions here are real: each fixture is resolved by `dart pub get
@@ -56,6 +57,7 @@ void main() {
     topLevel: '$outer/$repo',
     prefix: prefix,
     packageDir: '$outer/$repo/$prefix',
+    style: PathStyle.current,
   );
 
   // A repository whose app, one level down, depends on a package beside it
