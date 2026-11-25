@@ -1,6 +1,7 @@
 import 'package:portable_goldens/src/build/checkout_unavailable.dart';
 import 'package:portable_goldens/src/cli/cli_option.dart';
 import 'package:portable_goldens/src/cli/command_context.dart';
+import 'package:portable_goldens/src/cli/counted.dart';
 import 'package:portable_goldens/src/cli/exit_code.dart';
 import 'package:portable_goldens/src/cli/goldens_command.dart';
 import 'package:portable_goldens/src/cli/parsed_arguments.dart';
@@ -76,9 +77,9 @@ final class PrepareCommand extends GoldensCommand {
       return ExitCode.success;
     }
     final summary = [
-      if (builds.failed > 0) '${_count(builds.failed, 'build')} failed',
+      if (builds.failed > 0) '${counted(builds.failed, 'build')} failed',
       if (unwritten.isNotEmpty)
-        '${_count(unwritten.length, 'golden')} $_unwrittenByAPass',
+        '${counted(unwritten.length, 'golden')} $_unwrittenByAPass',
     ].join('; ');
     out.writeln('$summary.');
     return ExitCode.failure;
@@ -96,7 +97,7 @@ final class PrepareCommand extends GoldensCommand {
     final missing = await goldens.missing(pathspec);
     for (final MapEntry(key: commit, value: paths) in missing.entries) {
       out.writeln(
-        'Building ${shortSha(commit)} (${_count(paths.length, 'golden')})...',
+        'Building ${shortSha(commit)} (${counted(paths.length, 'golden')})...',
       );
       final started = DateTime.now();
       try {
@@ -117,8 +118,5 @@ final class PrepareCommand extends GoldensCommand {
     return (failed: failed, unbuilt: unbuilt);
   }
 }
-
-// "1 golden", "2 goldens".
-String _count(int count, String noun) => '$count $noun${count == 1 ? '' : 's'}';
 
 const _unwrittenByAPass = 'not written by a build that passed';
