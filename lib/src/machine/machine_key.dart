@@ -3,6 +3,7 @@ import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:portable_goldens/src/machine/flutter_sdk.dart';
+import 'package:portable_goldens/src/store/short_hash.dart';
 
 /// What changes how this machine renders a golden.
 ///
@@ -113,13 +114,7 @@ final class MachineKey {
   ///
   /// Any value that changes, an OS update say, names a different folder, so
   /// baselines rendered before it are never found, let alone reused.
-  String get id {
-    final hash = _fnv1a64(utf8.encode(_canonical));
-    // An int is signed, so each 32-bit half is written on its own.
-    String half(int value) =>
-        (value & 0xffffffff).toRadixString(16).padLeft(8, '0');
-    return '${half(hash >> 32)}${half(hash)}';
-  }
+  String get id => shortHash(_canonical);
 
   /// Whether [name] has the shape of an [id]: 16 hex digits.
   static bool isId(String name) => _idPattern.hasMatch(name);
@@ -145,23 +140,4 @@ final class MachineKey {
   String toString() => toJson().entries
       .map((e) => '${e.key}: ${e.value ?? 'unknown'}')
       .join(', ');
-}
-
-// FNV-1a, 64-bit: a folder name needs a stable short hash, not a
-// cryptographic one, and this keeps the package free of dependencies. The
-// manifest beside the folder holds the readable values, and a manifest that
-// disagrees with the key throws the folder away, so a collision cannot reuse
-// a baseline either.
-//
-// The constants do not fit a JavaScript number; this package runs only on
-// the Dart VM (it needs dart:io and dart:ffi), whose ints are 64-bit.
-int _fnv1a64(List<int> bytes) {
-  // The VM's 64-bit ints, as above.
-  // ignore: avoid_js_rounded_ints
-  var hash = 0xcbf29ce484222325;
-  for (final byte in bytes) {
-    hash ^= byte;
-    hash *= 0x100000001b3;
-  }
-  return hash;
 }
