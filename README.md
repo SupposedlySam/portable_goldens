@@ -496,6 +496,10 @@ object is not fetched, the pointer is where the png should be, and:
 A file git has and cannot read, because a required filter failed (`git lfs` without the object
 and no way to download it, say), is said the same way, with what git said.
 
+CI runs the whole workflow with the pngs in Git LFS on Linux, macOS and Windows: render, commit,
+prepare, compare, a changed widget failing, verify, prune. Its objects are in the repository's own
+store; a download from an LFS server is not tested.
+
 ### `--update-goldens`
 
 `flutter test --update-goldens` writes the committed png, as it always has. It does **not**

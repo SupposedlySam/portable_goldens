@@ -168,5 +168,5 @@ Verify from the repository root with `dart format --set-exit-if-changed .`,
 `flutter analyze --fatal-infos`, `flutter test`, `tool/check_null_assertions.sh` and
 `tool/check_ignored_sources.sh`. The tests build real git repositories in temporary folders and
 run real `git`. `tool/consumer_workflow.sh` runs the README's commands in a new consumer
-repository, and requires a changed widget to fail; `.github/workflows/ci.yaml` runs all of these
-on Linux, macOS and Windows.
+repository, and requires a changed widget to fail; with `--lfs` its pngs are in Git LFS.
+`.github/workflows/ci.yaml` runs all of these on Linux, macOS and Windows.

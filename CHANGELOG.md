@@ -27,6 +27,7 @@
   wherever `git lfs` is installed. A pointer is never compared: the test fails naming it, and
   `verify` reports it as not checked. `GitRepo.show` and `MachineGoldens.committedImage` return a
   `CommittedFile`: the bytes, or an `UnknownFile` (`LfsPointer`, `UnreadFile`) saying why not.
+  CI runs the README's workflow with the pngs in Git LFS on each OS.
 - Runs on macOS, Linux and Windows, all three checked in CI. On Windows a setup step is the one
   line of a batch file, so a literal `%` is written `%%`.
 - Setup steps: `portable_goldens: setup:` in the package's `pubspec.yaml` lists commands (a

@@ -20,9 +20,23 @@
 # `portable_goldens: setup:` step in the consumer's pubspec runs, with the
 # SDK's `dart` on its PATH, before the tests.
 #
+# With --lfs, the consumer keeps its pngs in Git LFS (`git lfs install
+# --local`, `git lfs track '*.png'`), and the run requires that the committed
+# png is a pointer, so every step after it reads the image through LFS: the
+# throwaway checkout's smudge, the baseline build, the compare. The objects
+# stay in the repository's own store; there is no LFS server.
+#
 # What it does not cover: a second machine (the cross-machine claim is the
-# key's, and needs two machines), Git LFS, submodules, and a shallow clone.
+# key's, and needs two machines), submodules, a shallow clone, and an LFS
+# object that has to be downloaded.
 set -euo pipefail
+
+lfs=false
+case "${1:-}" in
+  '') ;;
+  --lfs) lfs=true ;;
+  *) printf 'usage: %s [--lfs]\n' "$0" >&2; exit 64 ;;
+esac
 
 # A path as the Dart tools read it. Git Bash on Windows writes `/d/a/...`,
 # which only its own programs understand; `cygpath -m` gives `D:/a/...`,
@@ -117,6 +131,10 @@ flutter pub get
 dart run tool/generate.dart
 git check-ignore --quiet lib/dot_shape.g.dart ||
   fail 'git does not ignore the generated file, so the setup step proves nothing'
+if $lfs; then
+  git lfs install --local > /dev/null
+  git lfs track '*.png' > /dev/null
+fi
 git add -A
 git commit --quiet -m 'a dot'
 
@@ -125,6 +143,11 @@ flutter test --update-goldens
 [[ -f test/goldens/dot.png ]] || fail 'no golden was written'
 git add -A
 git commit --quiet -m 'the golden'
+if $lfs; then
+  git cat-file -p HEAD:test/goldens/dot.png |
+    grep -qx 'version https://git-lfs.github.com/spec/v1' ||
+    fail 'the committed png is not an LFS pointer, so LFS was not exercised'
+fi
 
 step 'prepare'
 dart run portable_goldens:prepare || fail 'prepare'
@@ -162,4 +185,8 @@ step 'prune --dry-run, then prune'
 dart run portable_goldens:prune --dry-run || fail 'prune --dry-run'
 dart run portable_goldens:prune || fail 'prune'
 
-printf '\nconsumer workflow passed.\n'
+if $lfs; then
+  printf '\nconsumer workflow passed, with the pngs in Git LFS.\n'
+else
+  printf '\nconsumer workflow passed.\n'
+fi

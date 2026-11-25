@@ -4,11 +4,13 @@
 # What it checks: formatting, analysis with infos as errors, no null
 # assertions in lib/ and bin/, no source file hidden from git or pub, the
 # whole test suite, the publish dry run, and the README's workflow run for
-# real in a new consumer repository (tool/consumer_workflow.sh).
+# real in a new consumer repository (tool/consumer_workflow.sh), once with
+# plain pngs and once with the pngs in Git LFS. Each runner image has Git
+# LFS; where one does not, that step fails rather than skips.
 #
 # What it does not check: Flutter releases other than the one in .fvmrc,
-# that two different machines agree (each job is one machine), and Git LFS
-# goldens.
+# that two different machines agree (each job is one machine), and an LFS
+# object that has to be downloaded from a server.
 name: ci
 
 on:
@@ -64,6 +66,9 @@ jobs:
 
       - name: The README's workflow, in a new consumer repository
         run: tool/consumer_workflow.sh
+
+      - name: The same, with the pngs in Git LFS
+        run: tool/consumer_workflow.sh --lfs
 
       - name: Publish dry run
         run: flutter pub publish --dry-run
