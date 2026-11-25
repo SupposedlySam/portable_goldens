@@ -41,14 +41,27 @@ final class PackageLocation {
       repoPath.startsWith(prefix) ? repoPath.substring(prefix.length) : null;
 
   /// The repository-relative form of [path], which is absolute or relative to
-  /// the package; null when it is outside the repository.
+  /// the package; null when it is outside the repository, or is its top
+  /// level, which has no relative form.
   ///
   /// Symbolic links are resolved on both sides first: git prints
   /// `/private/tmp` where a test's path says `/tmp`.
-  String? repoPathOf(String path) {
+  String? repoPathOf(String path) => switch (_fromTop(path)) {
+    final relative? when relative.isNotEmpty => relative,
+    _ => null,
+  };
+
+  /// Whether [path], absolute or relative to the package, is the top level
+  /// or anything below it.
+  bool contains(String path) => _fromTop(path) != null;
+
+  // [path] relative to the top level, empty for the top level itself; null
+  // when it is outside.
+  String? _fromTop(String path) {
     final absolute = _isAbsolute(path) ? path : '$packageDir/$path';
     final real = _real(absolute);
     final realTop = _real(topLevel);
+    if (real == realTop) return '';
     if (!real.startsWith('$realTop/')) return null;
     return real.substring(realTop.length + 1);
   }
