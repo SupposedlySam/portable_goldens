@@ -126,7 +126,7 @@ final class BaselineBuilder {
       '$flutter pub get',
       // A step's `dart` or `flutter` is the test's SDK, as in the build.
       if (!setup.isEmpty) ...[
-        if (shell == Shell.posix) 'export PATH="${sdk.bin}:\$PATH"',
+        shell.firstOnPathCommand(sdk.bin),
         ...setup.commands,
       ],
       '$flutter ${testArgs.join(' ')}',

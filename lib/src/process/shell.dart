@@ -29,6 +29,14 @@ enum Shell {
     windows => ['/d', '/s', '/c', commandLine],
   };
 
+  /// The command line that puts [folder] first on the `PATH` of the commands
+  /// after it, as [withFirstOnPath] does for the process: for a build's
+  /// command, which a developer should be able to run as shown.
+  String firstOnPathCommand(String folder) => switch (this) {
+    posix => 'export PATH="$folder:\$PATH"',
+    windows => 'set "PATH=$folder;%PATH%"',
+  };
+
   /// [environment], with [folder] first on its `PATH`.
   ///
   /// On Windows the variable is `Path` as often as `PATH`, and names are not
