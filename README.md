@@ -422,9 +422,9 @@ Set `PORTABLE_GOLDENS_CACHE` to put it somewhere else. The layout:
 The unit is the package's folder in its repository (`root` at the top), so two packages of one
 monorepo never fill each other's folder. A package with [setup steps](#generated-code-setup-steps)
 adds a hash of them (`root@<16 hex digits>`), so baselines built with other steps, or with none,
-are never read. `prune` reclaims the space of baselines nobody needs; the
-modification times of `manifest.json` and `.complete` are when they were last used, which is
-what it goes by. Deleting any of it by hand is safe too, and costs a rebuild.
+are never read. `prune` reclaims the space of baselines nobody needs; the modification times of
+`manifest.json` and `.complete` are when they were last used, which is what it goes by. Deleting
+any of it by hand is safe too, and costs a rebuild.
 
 ### Building a baseline
 
@@ -444,8 +444,9 @@ The first golden that needs a commit's baselines builds all of them at once:
      `git submodule update --init --recursive` in the checkout. Each submodule is cloned from its
      URL; a failure is a build failure naming that step.
 3. Run `flutter pub get`, then each [setup step](#generated-code-setup-steps), then
-   `flutter test --update-goldens <files>` in the package, with the same SDK as the test. The files are the commit's own test files whose source contains
-   `matchesGoldenFile`, or all of `test/` when none does.
+   `flutter test --update-goldens <files>` in the package, with the same SDK as the test. The
+   files are the commit's own test files whose source contains `matchesGoldenFile`, or all of
+   `test/` when none does.
 4. Keep every png the run wrote, judged by mtime. The images checked out from git are never taken
    for renders. A golden the run did not write is a failure.
 5. Remove the worktree.
