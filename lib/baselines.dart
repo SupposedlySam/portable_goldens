@@ -1,6 +1,6 @@
 /// The machine baselines without the comparator: the key, the store, the
-/// builder and the report, in plain Dart, for the `prepare` and `report`
-/// commands, which run outside a Flutter test.
+/// builder, the report and the verifier, in plain Dart, for the `prepare`,
+/// `report` and `verify` commands, which run outside a Flutter test.
 library;
 
 export 'src/build/baseline_builder.dart'
@@ -29,3 +29,10 @@ export 'src/store/build_failure.dart' show BuildFailure, Built;
 export 'src/store/cache_root.dart'
     show cacheEnvironmentVariable, defaultCacheRoot;
 export 'src/store/commit_baselines.dart' show CommitBaselines;
+export 'src/verify/flutter_pixel_comparer.dart'
+    show FlutterPixelComparer, verifyManifestVariable;
+export 'src/verify/golden_check.dart'
+    show GoldenCheck, Mismatch, Unbuilt, Uncommitted, Unverifiable, Verified;
+export 'src/verify/golden_verifier.dart' show GoldenVerifier;
+export 'src/verify/pixel_comparer.dart'
+    show ImagePair, PixelCompareFailure, PixelComparer, PixelVerdict;

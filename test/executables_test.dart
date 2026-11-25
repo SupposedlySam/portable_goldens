@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portable_goldens/baselines.dart';
+import 'package:portable_goldens/src/cli/command_runner.dart';
 
 import 'support/repo.dart';
 
@@ -21,7 +22,28 @@ void main() {
         ...args,
       ], workingDirectory: repo.dir);
 
-  for (final executable in ['prepare', 'report']) {
+  test('every command has its bin/ file and its pubspec executable', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final listed = RegExp(
+      r'^executables:\n((?:  \w+:.*\n)+)',
+      multiLine: true,
+    ).firstMatch(pubspec)?.group(1);
+    final names = [for (final c in commands) c.name];
+
+    expect(names, isNotEmpty);
+    expect(
+      RegExp(
+        r'^  (\w+):',
+        multiLine: true,
+      ).allMatches(listed ?? '').map((m) => m.group(1)),
+      unorderedEquals(names),
+    );
+    for (final name in names) {
+      expect(File('bin/$name.dart').existsSync(), isTrue, reason: name);
+    }
+  });
+
+  for (final executable in [for (final c in commands) c.name]) {
     test('$executable: --help exits 0, a bad option exits 64', () async {
       final help = await dartRun(executable, ['--help']);
       expect(help.exitCode, 0, reason: '${help.stderr}');
