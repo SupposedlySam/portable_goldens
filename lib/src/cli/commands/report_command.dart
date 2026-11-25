@@ -5,6 +5,7 @@ import 'package:portable_goldens/src/cli/cli_option.dart';
 import 'package:portable_goldens/src/cli/command_context.dart';
 import 'package:portable_goldens/src/cli/exit_code.dart';
 import 'package:portable_goldens/src/cli/goldens_command.dart';
+import 'package:portable_goldens/src/cli/json_format.dart';
 import 'package:portable_goldens/src/cli/parsed_arguments.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/report/golden_report.dart';
@@ -53,7 +54,9 @@ final class ReportCommand extends GoldensCommand {
       exists: (golden) => File('$dir/$golden').existsSync(),
     );
     if (arguments.flag(json)) {
-      context.out.writeln(jsonEncode(summary.toJson()));
+      context.out.writeln(
+        jsonEncode(JsonFormat.report.document(summary.toJson())),
+      );
     } else {
       _write(summary, context.out);
     }

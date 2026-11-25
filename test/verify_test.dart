@@ -313,6 +313,9 @@ void main() {
 
     expect(code, 0, reason: err);
     final json = jsonDecode(out) as Map<String, Object?>;
+    expect(json.keys.take(2), ['schema', 'version']);
+    expect(json['schema'], 'portable_goldens.verify');
+    expect(json['version'], 1);
     expect(json['machine'], fakeKey().id);
     expect(json['passed'], isTrue);
     final checks = json['checks']! as List<Object?>;

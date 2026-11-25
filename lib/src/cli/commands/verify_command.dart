@@ -5,6 +5,7 @@ import 'package:portable_goldens/src/cli/command_context.dart';
 import 'package:portable_goldens/src/cli/counted.dart';
 import 'package:portable_goldens/src/cli/exit_code.dart';
 import 'package:portable_goldens/src/cli/goldens_command.dart';
+import 'package:portable_goldens/src/cli/json_format.dart';
 import 'package:portable_goldens/src/cli/parsed_arguments.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/verify/golden_check.dart';
@@ -69,11 +70,13 @@ final class VerifyCommand extends GoldensCommand {
     final failed = checks.any((check) => check.isFailure);
     if (arguments.flag(json)) {
       out.writeln(
-        jsonEncode({
-          'machine': goldens.key.id,
-          'passed': !failed,
-          'checks': [for (final check in checks) check.toJson()],
-        }),
+        jsonEncode(
+          JsonFormat.verify.document({
+            'machine': goldens.key.id,
+            'passed': !failed,
+            'checks': [for (final check in checks) check.toJson()],
+          }),
+        ),
       );
     } else {
       _write(checks, out, everyGolden: everyGolden, machine: goldens.key.id);

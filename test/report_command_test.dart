@@ -133,6 +133,8 @@ void main() {
 
     expect(code, 1, reason: err);
     expect(jsonDecode(out), {
+      'schema': 'portable_goldens.report',
+      'version': 1,
       'base': base,
       'failed': [
         {

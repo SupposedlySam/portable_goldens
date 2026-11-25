@@ -147,10 +147,14 @@ Reads what the last test run recorded and lists two groups:
    "no diff". A golden the run did not compare says "not compared yet".
 
 It exits 1 if anything failed. With `--json` it writes the same two groups as one JSON document,
-for tools:
+for tools. Every `--json` document starts with its `schema` and `version`. The version goes up
+when a field is removed or changes meaning, never for a new field, so a tool can refuse a version
+it does not know:
 
 ```json
 {
+  "schema": "portable_goldens.report",
+  "version": 1,
   "base": "<the commit the branch is measured from>",
   "failed": [{"golden": "test/goldens/b.png", "diffs": ["<path of a diff image>"]}],
   "changed": [
@@ -179,7 +183,8 @@ It exits 1 on anything but verified or uncommitted: a check that did not run is 
 also exits 1, without checking, where machine baselines do not apply (a shallow clone, no git).
 The pixel compare needs a Flutter test binding, so it runs as one generated `flutter test` in
 `.dart_tool/portable_goldens/verify/`, for every png whose bytes differ from its render. With
-`--json` it writes `{"machine", "passed", "checks": [{"golden", "result", ...}]}`, for tools.
+`--json` it writes `{"schema": "portable_goldens.verify", "version": 1, "machine", "passed",
+"checks": [{"golden", "result", ...}]}`, for tools.
 
 As a git pre-push hook, in `.git/hooks/pre-push`:
 
