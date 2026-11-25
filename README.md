@@ -49,7 +49,9 @@ What follows from that:
 - Flutter 3.47 or later (Dart 3.13).
 - `git` on the `PATH`, and the package inside a git repository with **full history**. A shallow
   clone, no git, or a package outside a repository falls back to the committed images (see
-  [Fallbacks](#fallbacks)).
+  [Fallbacks](#fallbacks)). Goldens in Git LFS need `git lfs`, and git 2.42 or later to read
+  each commit's png through that commit's own `.gitattributes`; an older git uses the working
+  tree's.
 - macOS or Linux. Windows is not supported yet: path handling assumes `/`, so expect every golden
   there to fall back to the committed image.
 - Tests that use `matchesGoldenFile` with Flutter's own `LocalFileComparator`. A package that
