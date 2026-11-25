@@ -4,6 +4,8 @@ Exact golden tests that pass on every machine. Each machine compares a golden ag
 render** of the commit that last changed it, so two machines that draw the same widget a few
 pixels apart can run the same committed goldens with no tolerance.
 
+![A toggle whose knob inset moved one pixel fails against this machine's baseline: 264 pixels differ](https://raw.githubusercontent.com/SupposedlySam/portable_goldens/main/doc/hero.png)
+
 ```text
   committed png  ──  what the reviewer sees; written by --update-goldens, as always
        │
