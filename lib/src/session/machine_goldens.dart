@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:portable_goldens/src/build/baseline_builder.dart';
+import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/git_repo.dart';
 import 'package:portable_goldens/src/machine/flutter_sdk.dart';
 import 'package:portable_goldens/src/machine/machine_key.dart';
@@ -93,10 +94,11 @@ final class MachineGoldens {
   Future<List<String>> goldens(String pathspec) =>
       _session.then((s) => s.goldens(pathspec));
 
-  /// The bytes of the golden at [path] (absolute, or relative to the
-  /// package) as [commit] has it, or null when it has none or machine
-  /// baselines are not used.
-  Future<List<int>?> committedImage(String commit, String path) =>
+  /// The golden at [path] (absolute, or relative to the package) as
+  /// [commit] has it, read as its checkout would write it: its bytes, or
+  /// why they are unknown here, such as a Git LFS pointer. Null when the
+  /// commit has none, or machine baselines are not used.
+  Future<CommittedFile?> committedImage(String commit, String path) =>
       _session.then((s) => s.committedImage(commit, path));
 
   /// The goldens matching [pathspec] that this branch changed since its

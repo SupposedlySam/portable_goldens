@@ -229,6 +229,35 @@ void main() {
     });
   });
 
+  test('a png committed as a Git LFS pointer is not checked, and never '
+      'compared', () async {
+    repo.write(
+      'test/goldens/a.png',
+      'version https://git-lfs.github.com/spec/v1\n'
+          'oid sha256:${'0' * 64}\nsize 99\n',
+    );
+    final commit = await repo.commit('a.png in LFS');
+    final pixels = FakePixels();
+
+    final (code, out, _) = await verify(
+      ['--all'],
+      flutter: FakeFlutter(draw: drawsWhatIsCommitted),
+      pixels: pixels,
+    );
+
+    expect(code, 1);
+    expect(
+      out,
+      contains(
+        '  NOT CHECKED   test/goldens/a.png: ${commit.substring(0, 10)}'
+        "'s png is unknown here: it is a Git LFS pointer to 99 bytes",
+      ),
+    );
+    expect(out, contains('  verified      test/goldens/b.png ('));
+    expect(out, contains('\n1 verified, 1 not checked.\n'));
+    expect(pixels.asked, isEmpty);
+  });
+
   test('a commit that does not build is unbuilt, a failure', () async {
     final (code, out, _) = await verify([
       '--all',

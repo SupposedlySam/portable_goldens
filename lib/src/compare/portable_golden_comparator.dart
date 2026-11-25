@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:portable_goldens/src/compare/notices.dart';
+import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/report/golden_report.dart';
 import 'package:portable_goldens/src/report/report_entry.dart';
@@ -108,6 +109,14 @@ final class PortableGoldenComparator extends LocalFileComparator {
         _verifyHint(commit),
       ),
     };
+    // A checkout without Git LFS has the pointer where the png should be. It
+    // is no image, so it is said, not compared: a compare would fail as if
+    // the pixels differed, and `--update-goldens` would replace the pointer.
+    if (LfsPointer.parse(expected) case final pointer?) {
+      throw FlutterError(
+        'Golden "$golden": $against is unknown here, because ${pointer.why}.',
+      );
+    }
     final result = await GoldenFileComparator.compareLists(
       imageBytes,
       expected,

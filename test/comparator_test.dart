@@ -269,6 +269,43 @@ void main() {
     );
   });
 
+  test(
+    'a Git LFS pointer where the png should be is said, not compared',
+    () async {
+      final plain = Directory.systemTemp.createTempSync(
+        'portable_goldens_plain',
+      );
+      addTearDown(() => plain.deleteSync(recursive: true));
+      File('${plain.path}/test/goldens/a.png')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          'version https://git-lfs.github.com/spec/v1\n'
+          'oid sha256:${'0' * 64}\nsize 99\n',
+        );
+      final machine = comparator(packageDir: plain.path);
+
+      await expectLater(
+        machine.compare(committed, golden),
+        throwsA(
+          isA<FlutterError>().having(
+            (e) => e.message,
+            'message',
+            allOf(
+              contains('the committed image, because '),
+              contains('is unknown here, because it is a Git LFS pointer'),
+              contains('git lfs pull'),
+            ),
+          ),
+        ),
+      );
+      expect(
+        Directory('${plain.path}/test/failures').existsSync(),
+        isFalse,
+        reason: 'no compare ran, so no diff images',
+      );
+    },
+  );
+
   test('outside a git repository it is a plain comparator against the '
       'committed image', () async {
     final plain = Directory.systemTemp.createTempSync('portable_goldens_plain');

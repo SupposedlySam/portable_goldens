@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/session/golden_baseline.dart';
 import 'package:portable_goldens/src/session/machine_goldens.dart';
@@ -79,11 +80,21 @@ final class GoldenVerifier {
           Unverifiable(golden, 'its baseline is the working tree'),
         );
       case MachineBaseline(:final file, :final commit):
-        final committed = await goldens.committedImage(commit, golden);
-        if (committed == null) {
-          return _Checked(
-            Unverifiable(golden, '${shortSha(commit)} has no such png'),
-          );
+        final List<int> committed;
+        switch (await goldens.committedImage(commit, golden)) {
+          case CommittedBytes(:final bytes):
+            committed = bytes;
+          case final UnknownFile unknown:
+            return _Checked(
+              Unverifiable(
+                golden,
+                "${shortSha(commit)}'s png is unknown here: ${unknown.why}",
+              ),
+            );
+          case null:
+            return _Checked(
+              Unverifiable(golden, '${shortSha(commit)} has no such png'),
+            );
         }
         final rendered = await file.readAsBytes();
         if (_sameBytes(committed, rendered)) {

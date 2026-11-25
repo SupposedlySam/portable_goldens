@@ -2,7 +2,8 @@
 /// the branch left the default branch.
 final class BranchChange {
   /// The branch changed the golden since [base]; [image] is what it was
-  /// there, described by [was], or null when the golden is new.
+  /// there, described by [was], or null when there is nothing to compare
+  /// with: the golden is new, or what [base] had is unknown here.
   const new({required this.base, required this.image, required this.was});
 
   /// The commit the branch is measured from.

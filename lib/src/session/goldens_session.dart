@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:portable_goldens/src/build/baseline_builder.dart';
 import 'package:portable_goldens/src/build/checkout_unavailable.dart';
+import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/git_repo.dart';
 import 'package:portable_goldens/src/git/sha.dart';
 import 'package:portable_goldens/src/session/branch_change.dart';
@@ -38,9 +39,9 @@ sealed class GoldensSession {
   /// The tracked goldens matching [pathspec], package-relative.
   Future<List<String>> goldens(String pathspec);
 
-  /// The bytes of the golden at [path] (absolute, or relative to the
-  /// package) as [commit] has it, or null when it has none.
-  Future<List<int>?> committedImage(String commit, String path);
+  /// The golden at [path] (absolute, or relative to the package) as
+  /// [commit] has it, or null when it has none.
+  Future<CommittedFile?> committedImage(String commit, String path);
 
   /// The goldens matching [pathspec] this branch changed, relative to the
   /// package, sorted.
@@ -86,7 +87,8 @@ final class FallbackSession extends GoldensSession {
   Future<List<String>> goldens(String pathspec) async => const [];
 
   @override
-  Future<List<int>?> committedImage(String commit, String path) async => null;
+  Future<CommittedFile?> committedImage(String commit, String path) async =>
+      null;
 
   @override
   Future<List<String>> changedByBranch(String pathspec) async => const [];
@@ -233,13 +235,28 @@ final class ActiveSession extends GoldensSession {
         was: "this machine's render of ${shortSha(commit)}, before the branch",
       );
     }
-    return BranchChange(
-      base: base,
-      image: await repo.show(commit, relative),
-      was:
-          'the png committed at ${shortSha(commit)}, before the branch, '
-          'perhaps rendered on another machine',
-    );
+    final committed =
+        'the png committed at ${shortSha(commit)}, before the '
+        'branch';
+    return switch (await repo.show(commit, relative)) {
+      CommittedBytes(:final bytes) => BranchChange(
+        base: base,
+        image: bytes,
+        was: '$committed, perhaps rendered on another machine',
+      ),
+      final UnknownFile unknown => BranchChange(
+        base: base,
+        image: null,
+        was: 'nothing: $committed is unknown here, because ${unknown.why}',
+      ),
+      // lastCommitOf named the commit that changed the path; a commit that
+      // deleted it has none.
+      null => BranchChange(
+        base: base,
+        image: null,
+        was: 'nothing: $committed is not there',
+      ),
+    };
   }
 
   // This machine's render of [relative] at [commit], or null when it does
@@ -267,7 +284,7 @@ final class ActiveSession extends GoldensSession {
   ];
 
   @override
-  Future<List<int>?> committedImage(String commit, String path) async {
+  Future<CommittedFile?> committedImage(String commit, String path) async {
     final relative = repo.location.repoPathOf(path);
     return relative == null ? null : await repo.show(commit, relative);
   }

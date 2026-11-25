@@ -203,6 +203,27 @@ void main() {
       },
     );
 
+    test('a base whose png is an LFS pointer, and that does not build here, '
+        'has nothing to compare with, and says why', () async {
+      await repo.git(['checkout', '--quiet', 'main']);
+      repo.write(
+        'test/goldens/a.png',
+        'version https://git-lfs.github.com/spec/v1\n'
+            'oid sha256:${'0' * 64}\nsize 99\n',
+      );
+      await repo.commit('a.png in LFS');
+      await repo.git(['checkout', '--quiet', '-B', 'feature']);
+      repo.write('test/goldens/a.png', 'a, as the branch draws it');
+      await repo.commit('a changes');
+
+      final change = await session(FakeFlutter(testExitCode: 1))
+          .branchChange('test/goldens/a.png');
+
+      expect(change!.image, isNull, reason: 'a pointer is not compared');
+      expect(change.was, startsWith('nothing: the png committed at '));
+      expect(change.was, contains('Git LFS pointer to 99 bytes'));
+    });
+
     test(
       'uncommitted: the png in the working tree, and nothing is built',
       () async {
@@ -483,7 +504,11 @@ void main() {
     });
     expect(
       await goldens.committedImage(head, 'test/goldens/c.png'),
-      'committed c'.codeUnits,
+      isA<CommittedBytes>().having(
+        (c) => c.bytes,
+        'bytes',
+        'committed c'.codeUnits,
+      ),
     );
     // The root package's goldens are not this package's.
     expect(await goldens.committedImage(head, 'test/goldens/a.png'), isNull);

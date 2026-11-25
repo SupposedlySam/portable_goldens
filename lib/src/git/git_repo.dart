@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:portable_goldens/src/git/committed_file.dart';
 import 'package:portable_goldens/src/git/package_location.dart';
 import 'package:portable_goldens/src/process/process_runner.dart';
 
@@ -57,19 +58,38 @@ final class GitRepo {
     return sha == null || sha.isEmpty ? null : sha;
   }
 
-  /// The bytes of [path] as [commit] has it, or null when it has none.
-  Future<List<int>?> show(String commit, String path) async {
+  /// [path] as [commit] has it, or null when it has none.
+  ///
+  /// Read as a checkout of [commit] would write it: through the filters
+  /// [commit]'s own `.gitattributes` name (`attr.tree`), so a png in Git LFS
+  /// is the image wherever `git lfs` is installed. `git show` gives the blob
+  /// as stored, which for LFS is the pointer. Without `attr.tree` (measured,
+  /// git 2.50), `--filters` takes the attributes from the working tree and
+  /// index instead, which may not be the commit's.
+  ///
+  /// An LFS pointer, which a filter that is not installed leaves as it is,
+  /// is an [LfsPointer]; a file git has and could not read, because a
+  /// required filter failed, is an [UnreadFile]. Neither is an image.
+  Future<CommittedFile?> show(String commit, String path) async {
+    final object = '$commit:$path';
+    final ProcessResult filtered;
     try {
-      final result = await _run(
+      filtered = await _run(
         'git',
-        ['show', '$commit:$path'],
+        ['-c', 'attr.tree=$commit', 'cat-file', '--filters', object],
         workingDirectory: location.topLevel,
         stdoutEncoding: null,
       );
-      return result.exitCode == 0 ? result.stdout as List<int> : null;
-    } on ProcessException {
-      return null;
+    } on ProcessException catch (error) {
+      return UnreadFile('git could not be started: ${error.message}');
     }
+    if (filtered.exitCode == 0) {
+      return CommittedFile.of(filtered.stdout as List<int>);
+    }
+    // Absent, or there and unreadable: only the second is an unknown.
+    final there = await result(['cat-file', '-e', object]);
+    if (there != null && there.exitCode != 0) return null;
+    return UnreadFile(tailOf('${filtered.stderr}', lines: 5));
   }
 
   /// The commit this branch's own changes are measured from, for the report.
