@@ -98,9 +98,14 @@ final class CommitBaselines {
   /// anything but the lock file cannot be removed.
   Future<bool> remove() async {
     if (!commitDir.existsSync()) return true;
+    // The lock is skipped by name: a listing on Windows joins with `\` and
+    // [_lockFile] with `/`, so comparing paths deleted the held lock there.
+    final lock = nameOf(_lockFile);
     final removed = await ExclusiveLock(_lockFile).tryHold(() async {
       for (final entity in entries) {
-        if (entity.path != _lockFile.path) entity.deleteSync(recursive: true);
+        if (entity is! File || nameOf(entity) != lock) {
+          entity.deleteSync(recursive: true);
+        }
       }
     });
     if (!removed) return false;

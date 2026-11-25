@@ -54,9 +54,11 @@ final class CachedMachine {
   factory _scan(Directory dir, String id, List<String> foreign) {
     final units = <CachedUnit>[];
     var hasForeign = false;
-    final manifest = BaselineStore.manifestIn(dir).path;
+    // By name, not path: a listing on Windows joins with `\`, the folder's
+    // own paths with `/`, so the paths never matched there (CI, 2026-11-25).
+    final manifest = nameOf(BaselineStore.manifestIn(dir));
     for (final entity in entriesOf(dir)) {
-      if (entity.path == manifest) continue;
+      if (entity is File && nameOf(entity) == manifest) continue;
       final name = nameOf(entity);
       if (entity is! Directory || !isFullSha(name)) {
         foreign.add(entity.path);
