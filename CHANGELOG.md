@@ -27,3 +27,7 @@
   wherever `git lfs` is installed. A pointer is never compared: the test fails naming it, and
   `verify` reports it as not checked. `GitRepo.show` and `MachineGoldens.committedImage` return a
   `CommittedFile`: the bytes, or an `UnknownFile` (`LfsPointer`, `UnreadFile`) saying why not.
+- Setup steps: `portable_goldens: setup:` in the package's `pubspec.yaml` lists commands (a
+  `build_runner` build, `flutter gen-l10n`) that a baseline build runs after `flutter pub get`,
+  so ignored generated code exists in its checkout. Their hash is part of the baseline's folder
+  name, and a configuration that cannot be read fails with `SetupConfigError` naming the file.
