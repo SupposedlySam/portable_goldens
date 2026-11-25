@@ -106,6 +106,10 @@ void main() {
               "this machine's baseline, rendered from commit "
               '${head.substring(0, 10)}',
             ),
+            contains(
+              '`dart run portable_goldens:verify` checks whether '
+              '${head.substring(0, 10)} can draw it.',
+            ),
           ),
         ),
       ),
@@ -203,7 +207,11 @@ void main() {
             isA<FlutterError>().having(
               (e) => e.message,
               'message',
-              contains('the png in the working tree'),
+              allOf(
+                contains('the png in the working tree'),
+                // verify checks a commit's png, not the working tree's.
+                isNot(contains('portable_goldens:verify')),
+              ),
             ),
           ),
         );

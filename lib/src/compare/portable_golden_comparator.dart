@@ -86,19 +86,26 @@ final class PortableGoldenComparator extends LocalFileComparator {
       throw FlutterError('Golden "$golden": $failure');
     }
     final inPackage = _inPackage(path);
-    final (List<int> expected, String against) = switch (baseline) {
+    final (
+      List<int> expected,
+      String against,
+      String? hint,
+    ) = switch (baseline) {
       CommittedBaseline(:final reason) => (
         await _committed(golden, reason),
         'the committed image, because $reason',
+        null,
       ),
       WorkingTreeBaseline() => (
         await getGoldenBytes(golden),
         'the png in the working tree, which differs from HEAD',
+        null,
       ),
       MachineBaseline(:final file, :final commit, :final keyId) => (
         await file.readAsBytes(),
-        "this machine's baseline, rendered from commit ${shortSha(commit)} "
-            '(machine $keyId): ${file.path}',
+        "this machine's baseline, rendered from commit "
+            '${shortSha(commit)} (machine $keyId): ${file.path}',
+        _verifyHint(commit),
       ),
     };
     final result = await GoldenFileComparator.compareLists(
@@ -120,7 +127,9 @@ final class PortableGoldenComparator extends LocalFileComparator {
           at: DateTime.now(),
         ),
       );
-      throw FlutterError('$error\nCompared exactly against $against');
+      throw FlutterError(
+        [error, 'Compared exactly against $against', ?hint].join('\n'),
+      );
     }
     result.dispose();
     await _passed(imageBytes, golden, path, inPackage);
@@ -175,6 +184,14 @@ final class PortableGoldenComparator extends LocalFileComparator {
       ),
     );
   }
+
+  // A failure against a commit's own render on the machine that committed
+  // the png usually means the png was committed ahead of its code, which
+  // `verify` checks for directly.
+  static String _verifyHint(String commit) =>
+      'If the png was committed from this machine, '
+      '`dart run portable_goldens:verify` checks whether ${shortSha(commit)} '
+      'can draw it.';
 
   String _goldenPath(Uri golden) =>
       File.fromUri(basedir.resolveUri(Uri(path: golden.path))).path;
