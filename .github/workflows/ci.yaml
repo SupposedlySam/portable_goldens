@@ -1,15 +1,14 @@
-# Checks the package on Linux and macOS. It never publishes: a release to
-# pub.dev is made by hand.
+# Checks the package on Linux, macOS and Windows. It never publishes: a
+# release to pub.dev is made by hand.
 #
 # What it checks: formatting, analysis with infos as errors, no null
 # assertions in lib/ and bin/, no source file hidden from git or pub, the
 # whole test suite, the publish dry run, and the README's workflow run for
 # real in a new consumer repository (tool/consumer_workflow.sh).
 #
-# What it does not check: Windows on every push (the windows job runs only
-# when started by hand, until it has passed once), Flutter releases other
-# than the one in .fvmrc, that two different machines agree (each job is one
-# machine), and Git LFS goldens.
+# What it does not check: Flutter releases other than the one in .fvmrc,
+# that two different machines agree (each job is one machine), and Git LFS
+# goldens.
 name: ci
 
 on:
@@ -27,9 +26,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
+    defaults:
+      run:
+        # The guards and the consumer workflow are bash; Git for Windows has
+        # it, and elsewhere it is the default anyway.
+        shell: bash
     steps:
       # Baselines are built from commits, so the tests need the whole history.
       - uses: actions/checkout@v5
@@ -63,32 +67,3 @@ jobs:
 
       - name: Publish dry run
         run: flutter pub publish --dry-run
-
-  # Windows is written for (paths, hooks, the test-run lookup) but has never
-  # run. It joins the matrix above once this has passed; until then a red run
-  # here is news, not a broken branch.
-  windows:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: windows-latest
-    timeout-minutes: 45
-    defaults:
-      run:
-        # The guards and the consumer workflow are bash; Git for Windows has it.
-        shell: bash
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - uses: kuhnroyal/flutter-fvm-config-action/setup@v3
-        with:
-          path: .fvmrc
-
-      - name: Resolve
-        run: flutter pub get
-
-      - name: Test
-        run: flutter test
-
-      - name: The README's workflow, in a new consumer repository
-        run: tool/consumer_workflow.sh
