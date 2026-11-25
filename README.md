@@ -273,8 +273,8 @@ CI is one more machine. Give it what a laptop has:
 - uses: actions/cache@v4
   with:
     path: ~/.cache/portable_goldens
-    key: machine-goldens-${{ runner.os }}-${{ hashFiles('**/goldens/**/*.png') }}
-    restore-keys: machine-goldens-${{ runner.os }}-
+    key: portable-goldens-${{ runner.os }}-${{ hashFiles('**/goldens/**/*.png') }}
+    restore-keys: portable-goldens-${{ runner.os }}-
 - run: dart run portable_goldens:prepare
 - run: flutter test
 - run: dart run portable_goldens:report
@@ -480,7 +480,8 @@ Once the png is committed, its new commit gets a baseline of its own the next ti
 Each test run records its outcomes under `.dart_tool/portable_goldens/report/` in the package,
 which is where `report` reads them. The first write of a test process deletes the entries an
 earlier run left, so a golden fixed or deleted since is not listed. A run is told apart by the
-`flutter test` process all its test files share, its pid and start time, asked of `ps`.
+`flutter test` process all its test files share, its pid and start time, asked of `ps` (of
+`Win32_Process` on Windows).
 
 ## Environment variables
 
