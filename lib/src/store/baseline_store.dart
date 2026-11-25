@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:portable_goldens/src/machine/machine_key.dart';
 import 'package:portable_goldens/src/store/atomic_file.dart';
 import 'package:portable_goldens/src/store/commit_baselines.dart';
+import 'package:portable_goldens/src/store/last_use.dart';
 
 /// This machine's baselines, under `<root>/<key id>/`.
 ///
@@ -14,6 +15,9 @@ import 'package:portable_goldens/src/store/commit_baselines.dart';
 /// <root>/<key id>/<commit>/<unit>.lock     held while it is built
 /// <root>/<key id>/<commit>/<unit>.failed   the last build that failed
 /// ```
+///
+/// The manifest's and each marker's modification time is when they were
+/// last used, which is what `prune` goes by.
 ///
 /// The unit is the package's folder in its repository (`root` at the top),
 /// so two packages of one monorepo never fill each other's commit folder.
@@ -32,9 +36,13 @@ final class BaselineStore {
   /// delete what the others are reading and building.
   factory open(String root, MachineKey key) {
     final dir = Directory('$root/${key.id}');
-    final manifest = File('${dir.path}/manifest.json');
-    final recorded = _recordedKey(manifest);
-    if (recorded == key) return BaselineStore._(dir, key);
+    final manifest = manifestIn(dir);
+    final recorded = recordedKey(manifest);
+    if (recorded == key) {
+      // In use: `prune` removes a machine folder nobody opened for a while.
+      recordUse(manifest);
+      return BaselineStore._(dir, key);
+    }
     if (recorded != null) dir.deleteSync(recursive: true);
     dir.createSync(recursive: true);
     writeAtomically(
@@ -44,7 +52,11 @@ final class BaselineStore {
     return BaselineStore._(dir, key);
   }
 
-  static MachineKey? _recordedKey(File manifest) {
+  /// The manifest of the machine folder [dir].
+  static File manifestIn(Directory dir) => File('${dir.path}/manifest.json');
+
+  /// The key [manifest] records, or null when it records none.
+  static MachineKey? recordedKey(File manifest) {
     try {
       if (jsonDecode(manifest.readAsStringSync())
           case final Map<String, Object?> json) {

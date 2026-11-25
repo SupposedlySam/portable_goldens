@@ -22,18 +22,43 @@ final class ExclusiveLock {
     for (var held = _held[file.path]; held != null; held = _held[file.path]) {
       await held.future;
     }
+    await _holding(body, (handle) async {
+      await _acquire(handle);
+      return true;
+    });
+  }
+
+  /// Runs [body] holding the lock when it is free now, and returns whether
+  /// it ran: false, without waiting, when another process or this isolate
+  /// holds it.
+  Future<bool> tryHold(Future<void> Function() body) async {
+    if (_held.containsKey(file.path)) return false;
+    return await _holding(body, (handle) async {
+      try {
+        handle.lockSync(); // FileLock.exclusive
+        return true;
+      } on FileSystemException {
+        return false;
+      }
+    });
+  }
+
+  // Runs [body] if [take] gets the lock on the file, and gives it back
+  // after, however [body] ends.
+  Future<bool> _holding(
+    Future<void> Function() body,
+    Future<bool> Function(RandomAccessFile handle) take,
+  ) async {
     final done = Completer<void>();
     _held[file.path] = done;
     final handle = file.openSync(mode: FileMode.append);
+    var taken = false;
     try {
-      await _acquire(handle);
-      await body();
+      taken = await take(handle);
+      if (taken) await body();
+      return taken;
     } finally {
-      try {
-        handle.unlockSync();
-      } on FileSystemException {
-        // Never held: the body did not run.
-      }
+      if (taken) handle.unlockSync();
       handle.closeSync();
       _held.remove(file.path);
       done.complete();

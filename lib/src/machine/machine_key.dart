@@ -121,6 +121,11 @@ final class MachineKey {
     return '${half(hash >> 32)}${half(hash)}';
   }
 
+  /// Whether [name] has the shape of an [id]: 16 hex digits.
+  static bool isId(String name) => _idPattern.hasMatch(name);
+
+  static final _idPattern = RegExp(r'^[0-9a-f]{16}$');
+
   String get _canonical => jsonEncode(toJson());
 
   @override

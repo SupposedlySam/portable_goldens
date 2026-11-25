@@ -20,7 +20,7 @@ final class CompletionMarker {
   /// The marker in [dir], or null when there is none or it does not parse.
   static CompletionMarker? read(Directory dir) {
     try {
-      final text = _file(dir).readAsStringSync();
+      final text = fileIn(dir).readAsStringSync();
       if (jsonDecode(text) case {
         'commit': final String commit,
         'unit': final String unit,
@@ -59,7 +59,7 @@ final class CompletionMarker {
   final DateTime builtAt;
 
   /// Writes the marker into [dir].
-  void writeTo(Directory dir) => _file(dir).writeAsStringSync(
+  void writeTo(Directory dir) => fileIn(dir).writeAsStringSync(
     const JsonEncoder.withIndent('  ').convert({
       'commit': commit,
       'unit': unit,
@@ -69,5 +69,6 @@ final class CompletionMarker {
     }),
   );
 
-  static File _file(Directory dir) => File('${dir.path}/.complete');
+  /// The marker's file in [dir].
+  static File fileIn(Directory dir) => File('${dir.path}/.complete');
 }

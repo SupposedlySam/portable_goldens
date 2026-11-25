@@ -71,7 +71,12 @@ void main() {
   }
 
   test('the commands are the executables, one each', () {
-    expect(commands.map((c) => c.name), ['prepare', 'report', 'verify']);
+    expect(commands.map((c) => c.name), [
+      'prepare',
+      'prune',
+      'report',
+      'verify',
+    ]);
   });
 
   test('an unknown command names the ones there are, exit 64', () async {
@@ -79,6 +84,6 @@ void main() {
 
     expect(code, 64);
     expect(err, contains('no command "verfiy"'));
-    expect(err, contains('prepare, report, verify.'));
+    expect(err, contains('prepare, prune, report, verify.'));
   });
 }

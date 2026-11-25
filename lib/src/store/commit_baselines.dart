@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:portable_goldens/src/store/build_failure.dart';
 import 'package:portable_goldens/src/store/completion_marker.dart';
 import 'package:portable_goldens/src/store/exclusive_lock.dart';
+import 'package:portable_goldens/src/store/file_entries.dart';
+import 'package:portable_goldens/src/store/last_use.dart';
 
 /// One commit's baselines for one package, on this machine: a folder that
 /// is complete or absent, never half there.
@@ -28,6 +30,85 @@ final class CommitBaselines {
 
   File get _lockFile => File('${commitDir.path}/$unit.lock');
 
+  String get _tempPrefix => '.$unit$_temp';
+
+  static const _temp = '.tmp-';
+  static const _failed = '.failed';
+  static const _lock = '.lock';
+
+  /// The unit an entry of a commit folder named [name] belongs to, or null
+  /// when no build wrote it: the inverse of the names above.
+  ///
+  /// A unit's folder is `<unit>`, a temporary folder or checkout
+  /// `.<unit>.tmp-<pid>-<time>[-checkout]`, and its files `<unit>.failed`
+  /// and `<unit>.lock`. A unit is a package's folder, which may have a dot
+  /// in it, so the suffix decides, not the first dot.
+  static String? unitOf(String name, {required bool isDirectory}) {
+    if (isDirectory) {
+      if (!name.startsWith('.')) return name;
+      final temp = name.lastIndexOf(_temp);
+      return temp > 1 ? name.substring(1, temp) : null;
+    }
+    for (final suffix in const [_failed, _lock]) {
+      if (name.endsWith(suffix) && name.length > suffix.length) {
+        return name.substring(0, name.length - suffix.length);
+      }
+    }
+    return null;
+  }
+
+  /// Everything of [unit] in [commitDir]: its folder, its records, and what
+  /// builds killed before their cleanup left.
+  List<FileSystemEntity> get entries => [
+    for (final entity in entriesOf(commitDir))
+      if (unitOf(nameOf(entity), isDirectory: entity is Directory) == unit)
+        entity,
+  ];
+
+  /// When the baselines were last used: the marker's modification time,
+  /// which [baseline] and a finished build set. Without a marker, the
+  /// newest of [entries], such as the last failed build; null when there is
+  /// nothing.
+  DateTime? get lastUsed {
+    if (modifiedAt(markerFile) case final used?) return used;
+    DateTime? newest;
+    for (final entity in entries) {
+      if (modifiedAt(entity) case final time?
+          when newest == null || time.isAfter(newest)) {
+        newest = time;
+      }
+    }
+    return newest;
+  }
+
+  /// Removes everything of [unit] here, holding its lock, and [commitDir]
+  /// when nothing else is left in it. Returns false, removing nothing, when
+  /// a build holds the lock.
+  ///
+  /// The lock file goes too, while held: a build that was already waiting
+  /// on it then holds a lock nobody else can see, so a third may build
+  /// beside it. That costs a duplicate build, never a wrong baseline, since
+  /// each builds into its own temporary folder and renames it into place
+  /// ([fill]). Throws [FileSystemException] when something cannot be
+  /// removed.
+  Future<bool> remove() async {
+    if (!commitDir.existsSync()) return true;
+    final removed = await ExclusiveLock(_lockFile).tryHold(() async {
+      for (final entity in entries) {
+        if (entity.path != _lockFile.path) entity.deleteSync(recursive: true);
+      }
+      _lockFile.deleteSync();
+    });
+    if (removed) {
+      try {
+        commitDir.deleteSync();
+      } on FileSystemException {
+        // Another unit's baselines are in it still.
+      }
+    }
+    return removed;
+  }
+
   /// The marker of the finished build, or null when there is none.
   CompletionMarker? get marker => CompletionMarker.read(dir);
 
@@ -40,11 +121,20 @@ final class CommitBaselines {
   /// The baseline of the package-relative [path], or null when there is
   /// none: only an image the marker lists, since anything else in the folder
   /// was not written by the build the marker records.
+  ///
+  /// Finding one records that the baselines are in use ([recordUse] on the
+  /// marker), which keeps `prune` from removing them.
   File? baseline(String path) {
     if (!(marker?.files.contains(path) ?? false)) return null;
     final file = File('${dir.path}/$path');
-    return file.existsSync() ? file : null;
+    if (!file.existsSync()) return null;
+    recordUse(markerFile);
+    return file;
   }
+
+  /// The marker's file, `<commit>/<unit>/.complete`, whose modification time
+  /// is when the baselines were last used.
+  File get markerFile => CompletionMarker.fileIn(dir);
 
   /// Fills the folder with what [build] writes into the temporary folder it
   /// is handed, then renames it into place.
@@ -72,7 +162,7 @@ final class CommitBaselines {
       if (_failureSince(waitedFrom) case final failure?) throw failure;
       _sweep();
       final temp = Directory(
-        '${commitDir.path}/.$unit.tmp-$pid-'
+        '${commitDir.path}/$_tempPrefix$pid-'
         '${DateTime.now().microsecondsSinceEpoch}',
       );
       try {
@@ -137,9 +227,8 @@ final class CommitBaselines {
   // still running here; a build orphaned by a killed test process may still
   // be running in one, and fails, which nothing is waiting for.
   void _sweep() {
-    for (final entity in commitDir.listSync(followLinks: false)) {
-      final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
-      if (entity is Directory && name.startsWith('.$unit.tmp-')) {
+    for (final entity in entries) {
+      if (entity is Directory && nameOf(entity).startsWith(_tempPrefix)) {
         try {
           entity.deleteSync(recursive: true);
         } on FileSystemException {

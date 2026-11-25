@@ -12,6 +12,11 @@
   compare `matchesGoldenFile` uses, and keeps the images of a mismatch. `--all` checks every
   tracked golden; `--json` writes the checks for tools. A failure against this machine's baseline
   points at it.
+- `prune` removes the baselines nobody needs: ones unused for 30 days (`--older-than`), in any
+  repository and under any machine key, and ones of commits no branch, tag or checkout of the
+  repository has, once unused for a day. A commit the repository does not have goes by age alone,
+  the cache being shared. `--dry-run` removes nothing. Reading a baseline and opening the store
+  record their use, as modification times.
 - A baseline build checks out the commit's submodules, and gives its checkout the path
   dependencies outside the repository, by absolute path in a generated `pubspec_overrides.yaml`,
   as this machine resolves them.

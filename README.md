@@ -100,6 +100,7 @@ dart run portable_goldens:prepare   # optional: build every missing baseline now
 flutter test                       # compare
 dart run portable_goldens:report    # what failed, and what this branch changed
 dart run portable_goldens:verify    # before pushing: can each commit draw its own png?
+dart run portable_goldens:prune     # now and then: remove the baselines nobody needs
 ```
 
 **Changing a widget on purpose.** Run `flutter test --update-goldens`, look at the new pngs,
@@ -123,7 +124,8 @@ notices: every machine compares the golden with its commit's render, not with th
 the machine that rendered the pngs, since anywhere else every png differs by the machine too.
 
 **After an OS or Flutter update.** The first run rebuilds the baselines it needs, one test run per
-commit. Run `prepare` once to pay that up front.
+commit. Run `prepare` once to pay that up front. The old key's baselines stay until `prune`
+removes them.
 
 ### `prepare`
 
@@ -184,11 +186,32 @@ As a git pre-push hook, in `.git/hooks/pre-push`:
 cd path/to/package && dart run portable_goldens:verify
 ```
 
+### `prune`
+
+Removes from the cache the baselines nobody needs, and says what it removed and why:
+
+- baselines **unused for 30 days** (`--older-than <days>`), whatever the commit, in any repository
+  and under any machine key. A key from before an OS or SDK update is never used again, so its
+  baselines go by this rule; one that another project on another Flutter SDK still uses stays;
+- baselines of a commit **no branch, tag or checkout here has** (rebased, amended or squashed
+  away, or its branch deleted), once unused for a day. The day keeps what a test may be reading
+  now, and what another clone of the repository, with other branches, used today;
+- a machine key's folder once nothing is left in it and nothing opened it for as long.
+
+A baseline is used when a test reads it, and a key folder when a test process opens it. The cache
+is shared by every repository on the machine, so a commit the repository you run it in does not
+have may be another's, and only age removes it; outside a repository, only age removes anything.
+Baselines a build is writing are kept and listed as in use, and anything in the cache folder that
+the package did not write is left alone. `--dry-run` says what would go and removes nothing. It
+exits 1 when something could not be removed. Removing a baseline that was needed after all costs
+one rebuild, never a wrong result.
+
 ### Options every command takes
 
-Every command takes `--goldens <pathspec>` (or `--goldens=<pathspec>`), a git pathspec relative
-to the package. The default is `**/goldens/**/*.png`. Run them from the package's root. `--help`
-prints a command's usage. An option a command does not take exits 64, with the usage. Inside a
+`prepare`, `report` and `verify` take `--goldens <pathspec>` (or `--goldens=<pathspec>`), a git
+pathspec relative to the package. The default is `**/goldens/**/*.png`. Run them from the
+package's root. Every command takes `--help`, which prints its usage. An option a command does
+not take exits 64, with the usage, as does a value it cannot use (`--older-than 0`, say). Inside a
 baseline build every command refuses and exits 1, since it would build from within a build.
 
 ## In CI
@@ -208,6 +231,7 @@ CI is one more machine. Give it what a laptop has:
 - run: dart run portable_goldens:prepare
 - run: flutter test
 - run: dart run portable_goldens:report
+- run: dart run portable_goldens:prune   # keep the saved cache to the baselines still in use
 ```
 
 Without the cache, every run renders every baseline it needs: one `flutter test` of the golden
@@ -319,8 +343,9 @@ Set `PORTABLE_GOLDENS_CACHE` to put it somewhere else. The layout:
 ```
 
 The unit is the package's folder in its repository (`root` at the top), so two packages of one
-monorepo never fill each other's folder. To reclaim space, delete a key folder; old OS versions
-leave theirs behind.
+monorepo never fill each other's folder. `prune` reclaims the space of baselines nobody needs; the
+modification times of `manifest.json` and `.complete` are when they were last used, which is
+what it goes by. Deleting any of it by hand is safe too, and costs a rebuild.
 
 ### Building a baseline
 
@@ -451,7 +476,9 @@ earlier run left, so a golden fixed or deleted since is not listed. A run is tol
   commit's baseline. A dependency inside the repository is the commit's own.
 - **A submodule is cloned again for every build** from its URL, so a build needs that URL to be
   reachable, and costs the clone.
-- **The cache grows.** Nothing prunes old key folders or commits yet.
+- **Nothing prunes for you.** The cache grows until `prune` is run. It judges a commit gone only
+  in a repository that has it, and judges the rest by age, so baselines of a repository deleted
+  from disk wait out `--older-than`.
 
 ## Credit
 

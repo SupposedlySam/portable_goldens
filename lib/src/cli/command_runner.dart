@@ -2,6 +2,7 @@ import 'package:portable_goldens/src/build/baseline_builder.dart';
 import 'package:portable_goldens/src/cli/argument_parser.dart';
 import 'package:portable_goldens/src/cli/command_context.dart';
 import 'package:portable_goldens/src/cli/commands/prepare_command.dart';
+import 'package:portable_goldens/src/cli/commands/prune_command.dart';
 import 'package:portable_goldens/src/cli/commands/report_command.dart';
 import 'package:portable_goldens/src/cli/commands/verify_command.dart';
 import 'package:portable_goldens/src/cli/exit_code.dart';
@@ -10,6 +11,7 @@ import 'package:portable_goldens/src/cli/goldens_command.dart';
 /// Every command, each one executable in `bin/`.
 const List<GoldensCommand> commands = [
   PrepareCommand(),
+  PruneCommand(),
   ReportCommand(),
   VerifyCommand(),
 ];
