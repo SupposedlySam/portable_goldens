@@ -75,6 +75,9 @@ Every failure message ends with `Compared exactly against <what>`:
 | `the png in the working tree, which differs from HEAD` | The uncommitted png does not match what the code draws now. | Re-render, or revert the png. |
 | `the committed image, because <reason>` | Machine baselines were not used (see the reasons below), so this is a plain cross-machine compare and may be machine noise. | Fix the reason if you can (unshallow the clone, say). |
 
+`Golden "<file>": <what> is unknown here, because it is a Git LFS pointer` means the png is in
+Git LFS and its object is not here: run `git lfs install` and `git lfs pull`. Nothing was compared.
+
 `portable_goldens could not build the baselines of commit <sha>` means the old commit's
 submodules, `flutter pub get` or golden tests failed with today's SDK. The message carries the command, ready
 to paste into a shell, and the end of its output. The usual fix: re-render that golden on the
@@ -103,6 +106,8 @@ revision cannot be found; running inside a baseline build.
   given to it by a generated `pubspec_overrides.yaml`, from your own `.dart_tool/package_config.json`:
   they are the dependency as it is on disk now, not at the commit. Submodules are checked out with
   `git submodule update --init --recursive`, cloned from their URLs.
+- Goldens in Git LFS are read through the commit's own filters, so they are the image wherever
+  `git lfs` is installed. A pointer, where it is not, is never compared: it is reported as unknown.
 - `PORTABLE_GOLDENS_CHILD=1` marks a baseline build. Never set it yourself.
 
 ## Working on this package

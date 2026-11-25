@@ -165,7 +165,8 @@ working tree is checked as HEAD has it. Each golden is one of:
 - **MISMATCH**: it is not. The committed png, the render and the diff images are kept in
   `.dart_tool/portable_goldens/verify/mismatches/<golden>/`, and the message names the commit;
 - **UNBUILT**: the commit's baselines failed to build, so there is nothing to check against;
-- **NOT CHECKED**: it could not be checked, and says why (the pixel compare failed to run, say);
+- **NOT CHECKED**: it could not be checked, and says why (the pixel compare failed to run, or
+  the committed png is a Git LFS pointer, say);
 - **uncommitted**: a new png with no commit yet, which is not a failure.
 
 It exits 1 on anything but verified or uncommitted: a check that did not run is not a pass. It
@@ -366,6 +367,23 @@ commit, so the build is safe to race:
   written to a temporary file and renamed into place. A manifest that cannot be read is rewritten,
   and the baselines beside it are kept: only a readable manifest of another key empties the
   folder.
+
+### Git LFS
+
+Goldens kept in Git LFS work where `git lfs` is installed, as they do for a checkout: a commit's
+png is read through the filters the commit's own `.gitattributes` names
+(`git -c attr.tree=<commit> cat-file --filters`), so it is the image, not the pointer `git show`
+gives. A worktree is checked out through the same filters.
+
+A pointer is never compared as if it were an image. Where `git lfs` is not installed, or a file's
+object is not fetched, the pointer is where the png should be, and:
+
+- the test fails with the pointer named, and how to fetch the object, instead of a pixel diff;
+- `verify` reports the golden as not checked;
+- a golden the branch changed is reported with nothing to compare it with before the branch.
+
+A file git has and cannot read, because a required filter failed (`git lfs` without the object
+and no way to download it, say), is said the same way, with what git said.
 
 ### `--update-goldens`
 

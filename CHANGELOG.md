@@ -15,3 +15,7 @@
 - A baseline build checks out the commit's submodules, and gives its checkout the path
   dependencies outside the repository, by absolute path in a generated `pubspec_overrides.yaml`,
   as this machine resolves them.
+- Goldens in Git LFS: a commit's png is read through the commit's own filters, so it is the image
+  wherever `git lfs` is installed. A pointer is never compared: the test fails naming it, and
+  `verify` reports it as not checked. `GitRepo.show` and `MachineGoldens.committedImage` return a
+  `CommittedFile`: the bytes, or an `UnknownFile` (`LfsPointer`, `UnreadFile`) saying why not.
