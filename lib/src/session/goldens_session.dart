@@ -20,6 +20,11 @@ sealed class GoldensSession {
   /// package).
   Future<GoldenBaseline> baselineFor(String path);
 
+  /// The baseline of the golden at [path] as HEAD has it: [baselineFor],
+  /// except that a png the working tree changed since HEAD is still the
+  /// render of the commit that last changed it, never the working tree.
+  Future<GoldenBaseline> baselineAtHead(String path);
+
   /// The goldens matching [pathspec] whose baselines are missing here, by
   /// the commit that last changed each; package-relative.
   Future<Map<String, List<String>>> missing(String pathspec);
@@ -62,6 +67,10 @@ final class FallbackSession extends GoldensSession {
 
   @override
   Future<GoldenBaseline> baselineFor(String path) async =>
+      CommittedBaseline(reason);
+
+  @override
+  Future<GoldenBaseline> baselineAtHead(String path) async =>
       CommittedBaseline(reason);
 
   @override
@@ -137,7 +146,19 @@ final class ActiveSession extends GoldensSession {
   /// Throws [BuildFailure] when the baseline had to be built and the build
   /// failed, or ran and did not render this golden.
   @override
-  Future<GoldenBaseline> baselineFor(String path) async {
+  Future<GoldenBaseline> baselineFor(String path) =>
+      _baseline(path, workingTree: true);
+
+  /// Throws [BuildFailure] as [baselineFor] does.
+  @override
+  Future<GoldenBaseline> baselineAtHead(String path) =>
+      _baseline(path, workingTree: false);
+
+  // [workingTree]: whether a png that differs from HEAD is its own baseline.
+  Future<GoldenBaseline> _baseline(
+    String path, {
+    required bool workingTree,
+  }) async {
     final relative = repo.location.repoPathOf(path);
     if (relative == null) {
       return const CommittedBaseline('the golden is outside the repository');
@@ -146,7 +167,9 @@ final class ActiveSession extends GoldensSession {
     if (inPackage == null) {
       return const CommittedBaseline('the golden is outside the package');
     }
-    if (dirty.contains(relative)) return const WorkingTreeBaseline();
+    if (workingTree && dirty.contains(relative)) {
+      return const WorkingTreeBaseline();
+    }
     final commit = await repo.lastCommitOf(relative);
     if (commit == null) {
       return const CommittedBaseline('no commit has the golden');

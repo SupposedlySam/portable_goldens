@@ -63,6 +63,15 @@ final class MachineGoldens {
   Future<GoldenBaseline> baselineFor(String path) =>
       _session.then((s) => s.baselineFor(path));
 
+  /// The baseline of the golden at [path] as HEAD has it: [baselineFor],
+  /// except that a png the working tree changed since HEAD is still
+  /// compared as committed, with the render of the commit that last changed
+  /// it. What `verify` checks a committed png against.
+  ///
+  /// Throws [BuildFailure] as [baselineFor] does.
+  Future<GoldenBaseline> baselineAtHead(String path) =>
+      _session.then((s) => s.baselineAtHead(path));
+
   /// The goldens matching [pathspec] (a git pathspec, relative to the
   /// package) whose baselines are missing on this machine, by the commit
   /// that last changed each.
