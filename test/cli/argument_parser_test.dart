@@ -10,7 +10,14 @@ void main() {
     defaultValue: 'default/**',
   );
   const json = FlagOption(name: 'json', help: 'as json');
-  const parser = ArgumentParser([goldens, json]);
+  const days = ValueOption(
+    name: 'days',
+    valueName: 'n',
+    help: 'how many',
+    defaultValue: 'none',
+    check: _positive,
+  );
+  const parser = ArgumentParser([goldens, json, days]);
 
   Parsed parsed(List<String> args) => parser.parse(args) as Parsed;
 
@@ -50,4 +57,15 @@ void main() {
       '--goldens is given twice',
     );
   });
+
+  test('a value its option checks is a usage error when wrong, either way it '
+      'is given; the default is not checked', () {
+    expect(error(['--days', '0']), '--days must be positive, not "0"');
+    expect(error(['--days=x']), '--days must be positive, not "x"');
+    expect(parsed(['--days', '3']).arguments.value(days), '3');
+    expect(parsed(const []).arguments.value(days), 'none');
+  });
 }
+
+String? _positive(String value) =>
+    (int.tryParse(value) ?? 0) > 0 ? null : 'must be positive';

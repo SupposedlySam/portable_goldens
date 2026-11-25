@@ -33,9 +33,10 @@ final class UsageError extends ParseOutcome {
 /// Reads a command line against the [options] a command takes.
 ///
 /// Hand-rolled because `package:args` would be a dependency of every test
-/// process that uses the comparator, for two commands with two options.
+/// process that uses the comparator, for a few commands with a few options.
 /// It takes `--name value`, `--name=value` and `--flag`, and nothing
-/// positional; it never exits, it says what it found.
+/// positional; a value its option checks ([ValueOption.check]) and finds
+/// wrong is a usage error. It never exits, it says what it found.
 final class ArgumentParser {
   /// A parser for [options].
   const new(this.options);
@@ -65,13 +66,16 @@ final class ArgumentParser {
           flags.add(name);
         case ValueOption() when values.containsKey(name):
           return UsageError('--$name is given twice');
-        case ValueOption() when inline != null:
-          if (inline.isEmpty) return UsageError('--$name needs a value');
-          values[name] = inline;
-        case ValueOption() when i + 1 >= args.length:
+        case ValueOption() when inline != null && inline.isEmpty:
           return UsageError('--$name needs a value');
-        case ValueOption():
-          values[name] = args[++i];
+        case ValueOption() when inline == null && i + 1 >= args.length:
+          return UsageError('--$name needs a value');
+        case final ValueOption option:
+          final value = inline ?? args[++i];
+          if (option.problemWith(value) case final problem?) {
+            return UsageError('--$name $problem, not "$value"');
+          }
+          values[name] = value;
       }
     }
     return Parsed(ParsedArguments(values: values, flags: flags));
