@@ -97,6 +97,7 @@ Calling `install()` again is a no-op.
 dart run portable_goldens:prepare   # optional: build every missing baseline now
 flutter test                       # compare
 dart run portable_goldens:report    # what failed, and what this branch changed
+dart run portable_goldens:verify    # before pushing: can each commit draw its own png?
 ```
 
 **Changing a widget on purpose.** Run `flutter test --update-goldens`, look at the new pngs,
@@ -112,6 +113,12 @@ images, in `failures/` beside the test as usual. `report` lists every failure fr
 into a shell) and the end of its output. The usual cause is an old commit that no longer builds
 with today's SDK. Re-render the png on your branch and commit it: its baseline moves to a commit
 that builds.
+
+**Before pushing.** `verify` checks that each png the branch committed is what its commit draws
+on this machine. A png committed before its last code change, or with only part of the code
+(`git add -p`, a rebase that split a commit), is a picture no commit can draw, and nothing else
+notices: every machine compares the golden with its commit's render, not with the png. Run it on
+the machine that rendered the pngs, since anywhere else every png differs by the machine too.
 
 **After an OS or Flutter update.** The first run rebuilds the baselines it needs, one test run per
 commit. Run `prepare` once to pay that up front.
@@ -147,10 +154,39 @@ for tools:
 }
 ```
 
-Both commands take `--goldens <pathspec>` (or `--goldens=<pathspec>`), a git pathspec relative
+### `verify`
+
+For each golden the branch changed (every tracked golden with `--all`), renders the commit that
+last changed it, building the baseline if it is missing, and compares that render with the png
+the commit holds, pixel for pixel, with the compare `matchesGoldenFile` uses. A png changed in the
+working tree is checked as HEAD has it. Each golden is one of:
+
+- **verified**: the png is exactly what its commit draws here;
+- **MISMATCH**: it is not. The committed png, the render and the diff images are kept in
+  `.dart_tool/portable_goldens/verify/mismatches/<golden>/`, and the message names the commit;
+- **UNBUILT**: the commit's baselines failed to build, so there is nothing to check against;
+- **NOT CHECKED**: it could not be checked, and says why (the pixel compare failed to run, say);
+- **uncommitted**: a new png with no commit yet, which is not a failure.
+
+It exits 1 on anything but verified or uncommitted: a check that did not run is not a pass. It
+also exits 1, without checking, where machine baselines do not apply (a shallow clone, no git).
+The pixel compare needs a Flutter test binding, so it runs as one generated `flutter test` in
+`.dart_tool/portable_goldens/verify/`, for every png whose bytes differ from its render. With
+`--json` it writes `{"machine", "passed", "checks": [{"golden", "result", ...}]}`, for tools.
+
+As a git pre-push hook, in `.git/hooks/pre-push`:
+
+```sh
+#!/bin/sh
+cd path/to/package && dart run portable_goldens:verify
+```
+
+### Options every command takes
+
+Every command takes `--goldens <pathspec>` (or `--goldens=<pathspec>`), a git pathspec relative
 to the package. The default is `**/goldens/**/*.png`. Run them from the package's root. `--help`
 prints a command's usage. An option a command does not take exits 64, with the usage. Inside a
-baseline build either command refuses and exits 1, since it would build from within a build.
+baseline build every command refuses and exits 1, since it would build from within a build.
 
 ## In CI
 
@@ -355,7 +391,8 @@ earlier run left, so a golden fixed or deleted since is not listed. A run is tol
   `flutter_test_config.dart`. Exports everything below too.
 - `package:portable_goldens/baselines.dart`: the machinery in plain Dart, without `flutter_test`,
   for tools built on it: `MachineKey`, `BaselineStore`, `BaselineBuilder`, `MachineGoldens` (which
-  baseline a golden uses, what is missing, what the branch changed) and `GoldenReport`.
+  baseline a golden uses, what is missing, what the branch changed), `GoldenReport`, and
+  `GoldenVerifier` with its `PixelComparer`.
 
 ## Limits
 
@@ -368,11 +405,12 @@ earlier run left, so a golden fixed or deleted since is not listed. A run is tol
 - **The key is measured, not proven.** The CPU model is left out because the OS version alone
   separated the two machines that prompted this package. If two machines with the same key ever
   render differently, the key needs another field.
-- **Nothing checks a committed png against its own commit's code.** The baseline is what the
+- **Only `verify` checks a committed png against its own commit's code.** The baseline is what the
   commit renders here, never the png it committed, so a png committed stale (re-rendered before a
-  last code change, say) passes on every machine, and only a reviewer looking at it can tell.
-  `report` does not flag a render that differs from the committed png either: on any machine but
-  the one that rendered it, every golden differs from it, so the flag would be noise.
+  last code change, say) passes the tests on every machine. `verify` catches it, but only when run
+  on the machine that rendered the png, and only if someone runs it: nothing runs it for you.
+  `report` does not flag a render that differs from the committed png: on any machine but the one
+  that rendered it, every golden differs from it, so the flag would be noise.
 - **The committed pngs drift from every machine but the last to render them.** That is by design
   locally, but it means a run that falls back to the committed images (a shallow CI clone, say)
   can fail where a full clone passes.

@@ -7,4 +7,8 @@
 - A png that differs from HEAD compares exactly with itself in the working tree; a golden the
   branch changed is reported with its diff against what it was before the branch.
 - `prepare` builds missing baselines; `report` lists failed and branch-changed goldens, and
-  `report --json` writes them for tools. Both take `--help`.
+  `report --json` writes them for tools. Every command takes `--help`.
+- `verify` checks that each committed png is what its own commit draws on this machine, with the
+  compare `matchesGoldenFile` uses, and keeps the images of a mismatch. `--all` checks every
+  tracked golden; `--json` writes the checks for tools. A failure against this machine's baseline
+  points at it.

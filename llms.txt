@@ -53,7 +53,13 @@ Run these from the package root:
 dart run portable_goldens:prepare   # build missing baselines now; exit 1 if a build failed
 flutter test                       # compare
 dart run portable_goldens:report    # failed goldens and goldens this branch changed; exit 1 on failure
+dart run portable_goldens:verify    # before pushing: each committed png is what its commit draws here; exit 1 if not
 ```
+
+`verify` is only meaningful on the machine that rendered the pngs: anywhere else every png
+differs from its commit's render by the machine as well. A MISMATCH there means the png was
+committed before its code, or with part of it (`git add -p`, a split rebase). It keeps the
+committed png, the render and the diff in `.dart_tool/portable_goldens/verify/mismatches/`.
 
 To change a golden on purpose: `flutter test --update-goldens`, look at the png, commit it. An
 uncommitted png compares against itself in the working tree, so the run passes before the commit
@@ -65,7 +71,7 @@ Every failure message ends with `Compared exactly against <what>`:
 
 | `<what>` | Meaning | What to do |
 |---|---|---|
-| `this machine's baseline, rendered from commit <sha>` | Current code draws differently from the commit that last changed the png, on this machine. A real regression, or an intended change. | Look at the diff images in `failures/`. If the change is intended, update and commit the golden. |
+| `this machine's baseline, rendered from commit <sha>` | Current code draws differently from the commit that last changed the png, on this machine. A real regression, or an intended change. | Look at the diff images in `failures/`. If the change is intended, update and commit the golden. If the png was committed from this machine, run `verify`: the commit may not draw its own png. |
 | `the png in the working tree, which differs from HEAD` | The uncommitted png does not match what the code draws now. | Re-render, or revert the png. |
 | `the committed image, because <reason>` | Machine baselines were not used (see the reasons below), so this is a plain cross-machine compare and may be machine noise. | Fix the reason if you can (unshallow the clone, say). |
 
@@ -86,7 +92,8 @@ revision cannot be found; running inside a baseline build.
 - After an OS, engine, framework or Dart update, the machine key changes and every baseline is
   rebuilt, so an SDK upgrade does not fail goldens. A pixel change from the SDK itself is not
   reported as a failure: the baseline and the test render with the same SDK.
-- Nothing checks that a committed png matches its own commit's code. A stale png passes.
+- The tests never check that a committed png matches its own commit's code, so a stale png
+  passes them. Only `verify` checks it, on the machine that rendered the png.
 - The cache lives outside the repository (macOS `~/Library/Caches/portable_goldens`, Linux
   `$XDG_CACHE_HOME/portable_goldens` or `~/.cache/portable_goldens`) and is shared by every
   worktree and clone. Override it with `PORTABLE_GOLDENS_CACHE`.
@@ -106,6 +113,7 @@ revision cannot be found; running inside a baseline build.
 | `git/` | `GitRepo` (every git question asked) and `PackageLocation` (absolute, repo- and package-relative paths) |
 | `process/` | `ProcessRunner`, the one seam every process launch goes through |
 | `report/` | `GoldenReport` (the last run's outcomes) and `WorkSummary` (what `report` prints) |
+| `verify/` | `GoldenVerifier` (is each committed png its commit's render here?), the sealed `GoldenCheck` results, and `PixelComparer`, whose `FlutterPixelComparer` runs one generated `flutter test` for the pixel compare |
 | `cli/` | `GoldensCommand`, one class per command, the argument parser and `runPortableGoldens`; each `bin/<command>.dart` only calls it |
 
 Rules the code already follows. Keep them:
